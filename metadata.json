@@ -1,0 +1,6 @@
+{
+  "name": "OFFSLEEK School OS - Staff Login",
+  "description": "OFFSLEEK School OS staff portal login page replica.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
