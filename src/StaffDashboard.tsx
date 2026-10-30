@@ -21,6 +21,7 @@ import { getSavedMarksRecords } from './services/marksService';
 import { formatISTTime12h, useISTCurrentDate } from './utils/dateTimeUtils';
 import StaffBottomNav from './components/StaffBottomNav';
 import StaffStatusBar from './components/StaffStatusBar';
+import { getAssetUrl } from './utils/assetUtils';
 
 interface StaffDashboardProps {
   onLogout?: () => void;
@@ -202,7 +203,7 @@ export default function StaffDashboard({
             className="shrink-0 flex items-center gap-2 sm:gap-2.5 bg-white border border-[#e5e7eb] rounded-2xl p-2 sm:p-2.5 shadow-[0_2px_8px_rgba(0,0,0,0.03)] cursor-pointer hover:border-neutral-400 transition"
           >
             <img
-              src="/assets/priya-sharma.png"
+              src={getAssetUrl('/assets/priya-sharma.png')}
               alt="Ms. Priya Sharma"
               className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover shrink-0 border border-neutral-100"
             />

@@ -5,6 +5,7 @@
 
 import React, { useState } from 'react';
 import { Mail, Lock, Eye, EyeOff, Check, X } from 'lucide-react';
+import { getAssetUrl } from './utils/assetUtils';
 import StaffDashboard from './StaffDashboard';
 import AttendanceSaved from './AttendanceSaved';
 import TakeAttendance from './TakeAttendance';
@@ -648,7 +649,7 @@ export default function App() {
               <div className="flex flex-col items-center justify-center pt-1 pb-3">
                 {/* Main OFFSLEEK Floating Molecule Logo */}
                 <img
-                  src="/assets/OFFSLEEK%20Floating%20Molecule%20Logo.png"
+                  src={getAssetUrl('/assets/OFFSLEEK Floating Molecule Logo.png')}
                   alt="OFFSLEEK"
                   className="w-[224px] sm:w-[234px] h-auto object-contain"
                 />

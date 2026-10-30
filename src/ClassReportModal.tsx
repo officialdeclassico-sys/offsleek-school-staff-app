@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { X, Download, Printer, BarChart2, CheckCircle2, XCircle, Clock } from 'lucide-react';
 import { AttendanceRecord } from './services/attendanceService';
+import { getAssetUrl } from './utils/assetUtils';
 
 interface ClassReportModalProps {
   record: AttendanceRecord;
@@ -151,7 +152,14 @@ export default function ClassReportModal({ record, onClose }: ClassReportModalPr
                 <div key={s.id} className="py-2 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] text-neutral-500 w-5">{s.rollNo}</span>
-                    <img src={s.avatar} alt="" className="w-6 h-6 rounded-full object-cover" />
+                    <img
+                      src={getAssetUrl(s.avatar)}
+                      alt=""
+                      className="w-6 h-6 rounded-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
                     <span className="text-[12.5px] font-medium text-neutral-950">{s.name}</span>
                   </div>
                   <span

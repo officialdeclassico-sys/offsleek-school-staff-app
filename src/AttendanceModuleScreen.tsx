@@ -45,6 +45,7 @@ import {
   parseMonthYearToYearMonth,
   getRecentAndSurroundingMonthYears,
 } from './utils/dateTimeUtils';
+import { getAssetUrl } from './utils/assetUtils';
 
 interface AttendanceModuleScreenProps {
   onNavigateHome: () => void;
@@ -175,7 +176,7 @@ export default function AttendanceModuleScreen({
     if (avatar) {
       return (
         <img
-          src={avatar}
+          src={getAssetUrl(avatar)}
           alt={name}
           className={`${sizeClass} rounded-full object-cover shrink-0 border border-neutral-100 shadow-2xs`}
           onError={(e) => {
@@ -280,7 +281,7 @@ export default function AttendanceModuleScreen({
                   {activeStudent.isPublished && (
                     <span className="text-[10px] font-bold text-neutral-800 bg-[#f8f9fa] border border-neutral-200 px-2 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
                       <img
-                        src="/assets/Dark Verified Check Badge.png"
+                        src={getAssetUrl('/assets/Dark Verified Check Badge.png')}
                         alt="Verified"
                         className="w-3 h-3 object-contain shrink-0"
                       />

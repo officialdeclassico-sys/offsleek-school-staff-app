@@ -26,6 +26,7 @@ import {
 } from './services/attendanceService';
 import StaffStatusBar from './components/StaffStatusBar';
 import { useISTCurrentDate } from './utils/dateTimeUtils';
+import { getAssetUrl } from './utils/assetUtils';
 
 interface TakeAttendanceProps {
   initialRecord?: AttendanceRecord;
@@ -624,9 +625,12 @@ export default function TakeAttendance({
                     </span>
                     
                     <img
-                      src={student.avatar}
+                      src={getAssetUrl(student.avatar)}
                       alt={student.name}
                       className="w-8 h-8 rounded-full object-cover shrink-0 border border-neutral-100"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
                     />
                     
                     <span className="text-[13px] font-semibold text-neutral-950 truncate flex-1 min-w-0">

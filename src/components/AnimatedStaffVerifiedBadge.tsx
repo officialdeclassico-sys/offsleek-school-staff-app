@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { getAssetUrl } from '../utils/assetUtils';
 
 export type VerifiedBadgeSize = 'xs' | 'sm' | 'md' | 'lg' | 'hero' | 'xl' | '2xl' | 'custom';
 export type StaffBadgeSize = VerifiedBadgeSize;
@@ -39,7 +40,7 @@ const SIZE_CLASSES: Record<Exclude<VerifiedBadgeSize, 'custom'>, string> = {
 };
 
 // Global OFFSLEEK standard verified badge asset (Solid glossy black with crisp white checkmark)
-export const OFFSLEEK_VERIFIED_BADGE_ASSET = '/assets/Dark Verified Check Badge.png';
+export const OFFSLEEK_VERIFIED_BADGE_ASSET = getAssetUrl('/assets/Dark Verified Check Badge.png');
 
 export default function AnimatedStaffVerifiedBadge({
   size = 'md',

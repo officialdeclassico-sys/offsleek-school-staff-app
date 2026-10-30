@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { Home, Calendar, Megaphone } from 'lucide-react';
+import { getAssetUrl } from '../utils/assetUtils';
 
 export type StaffNavTab =
   | 'Home'
@@ -123,7 +124,7 @@ export default function StaffBottomNav({
         >
           <div className="h-6 w-6 flex items-center justify-center shrink-0 transition">
             <img
-              src="/assets/priya-sharma.png"
+              src={getAssetUrl('/assets/priya-sharma.png')}
               alt="Profile"
               className={`w-[21px] h-[21px] sm:w-[23px] sm:h-[23px] rounded-full object-cover transition ${
                 activeTab === 'Profile'

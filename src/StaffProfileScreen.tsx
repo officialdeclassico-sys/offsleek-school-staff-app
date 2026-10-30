@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import StaffBottomNav from './components/StaffBottomNav';
 import StaffStatusBar from './components/StaffStatusBar';
+import { getAssetUrl } from './utils/assetUtils';
 
 interface StaffProfileScreenProps {
   onNavigateHome: () => void;
@@ -85,7 +86,7 @@ export default function StaffProfileScreen({
     role: 'Class Teacher',
     joiningDate: '12 June 2024',
     subjectsAssigned: 'Mathematics, Science',
-    avatar: '/assets/priya-sharma.png',
+    avatar: getAssetUrl('/assets/priya-sharma.png'),
   };
 
   const assignedClassesList = [
@@ -202,7 +203,7 @@ export default function StaffProfileScreen({
                     {staffData.name}
                   </span>
                   <img
-                    src="/assets/Dark Verified Check Badge.png"
+                    src={getAssetUrl('/assets/Dark Verified Check Badge.png')}
                     alt="Verified Staff"
                     className="w-4 h-4 object-contain shrink-0"
                     title="Verified Faculty"
@@ -364,7 +365,7 @@ export default function StaffProfileScreen({
                     {staffData.name}
                   </span>
                   <img
-                    src="/assets/Dark Verified Check Badge.png"
+                    src={getAssetUrl('/assets/Dark Verified Check Badge.png')}
                     alt="Verified Staff"
                     className="w-3.5 h-3.5 object-contain shrink-0"
                     title="Verified Faculty"
@@ -745,7 +746,7 @@ export default function StaffProfileScreen({
                     <div className="mt-1 flex items-center gap-1.5 text-[10.5px]">
                       <span className="inline-flex items-center gap-1 text-neutral-800 bg-[#f8f9fa] border border-neutral-200 px-2 py-0.5 rounded-full font-medium">
                         <img
-                          src="/assets/Dark Verified Check Badge.png"
+                          src={getAssetUrl('/assets/Dark Verified Check Badge.png')}
                           alt="Verified"
                           className="w-3.5 h-3.5 object-contain shrink-0"
                         />

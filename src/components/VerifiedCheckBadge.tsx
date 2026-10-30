@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { getAssetUrl } from '../utils/assetUtils';
 
 export type VerifiedBadgeSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'custom';
 
@@ -92,7 +93,7 @@ export default function VerifiedCheckBadge({
   const rippleClass = sizeConfig ? sizeConfig.ripple : 'inset-[-14px]';
 
   // Primary image path to organized transparent glossy badge asset
-  const assetSrc = '/assets/Dark Verified Check Badge.png';
+  const assetSrc = getAssetUrl('/assets/Dark Verified Check Badge.png');
 
   return (
     <div
