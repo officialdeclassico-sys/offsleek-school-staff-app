@@ -25,6 +25,7 @@ import {
 import { HomeworkFileTypeIcon } from './ReviewHomework';
 import StaffStatusBar from './components/StaffStatusBar';
 import { formatISTDateTime } from './utils/dateTimeUtils';
+import { getAssetUrl } from './utils/assetUtils';
 
 interface ViewAssignedHomeworkProps {
   record: HomeworkRecord;
@@ -291,7 +292,7 @@ export default function ViewAssignedHomework({
                     </span>
 
                     <img
-                      src={student.avatar}
+                      src={getAssetUrl(student.avatar)}
                       alt={student.name}
                       className="w-8 h-8 rounded-full object-cover border border-neutral-200 bg-neutral-100 shrink-0"
                       onError={(e) => {

@@ -39,6 +39,7 @@ import {
   getNow,
   useISTCurrentDate,
 } from '../utils/dateTimeUtils';
+import { getAssetUrl } from '../utils/assetUtils';
 
 export interface ParentStudentDashboardProps {
   onLogout: () => void;
@@ -226,9 +227,12 @@ export default function ParentStudentDashboard({
         <div className="flex items-center justify-between mt-2.5">
           <div className="flex items-center gap-2">
             <img
-              src="/assets/logo-ring.png"
+              src={getAssetUrl('/assets/logo-ring.png')}
               alt="OFFSLEEK"
               className="w-5 h-5 object-contain"
+              onError={(e) => {
+                (e.target as HTMLElement).style.display = 'none';
+              }}
             />
             <div className="flex items-center gap-1.5">
               <span className="text-[13px] font-black tracking-tight text-neutral-950 uppercase">
@@ -271,11 +275,11 @@ export default function ParentStudentDashboard({
           <div className="flex items-center gap-3">
             <div className="relative w-12 h-12 rounded-full overflow-hidden bg-neutral-100 border border-neutral-200">
               <img
-                src="/assets/students/student-03-arjun.png"
+                src={getAssetUrl('/assets/students/student-03-arjun.png')}
                 alt="Arjun Mehta"
                 className="w-full h-full object-cover"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = '/assets/test-avatar.png';
+                  (e.target as HTMLImageElement).src = getAssetUrl('/assets/test-avatar.png');
                 }}
               />
             </div>

@@ -25,6 +25,7 @@ import {
   downloadHomeworkAttachment,
 } from './services/homeworkService';
 import StaffStatusBar from './components/StaffStatusBar';
+import { getAssetUrl } from './utils/assetUtils';
 
 interface ReviewHomeworkProps {
   draft: HomeworkDraft;
@@ -278,7 +279,7 @@ export default function ReviewHomework({
               {previewStudents.map((stu) => (
                 <img
                   key={stu.id}
-                  src={stu.avatar}
+                  src={getAssetUrl(stu.avatar)}
                   alt={stu.name}
                   className="w-9 h-9 rounded-full object-cover border-2 border-white bg-neutral-100 shrink-0"
                   onError={(e) => {
@@ -310,9 +311,12 @@ export default function ReviewHomework({
                       {student.rollNo}
                     </span>
                     <img
-                      src={student.avatar}
+                      src={getAssetUrl(student.avatar)}
                       alt={student.name}
                       className="w-7 h-7 rounded-full object-cover border border-neutral-200 shrink-0"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
                     />
                     <span className="text-[12.5px] font-semibold text-neutral-900 truncate">
                       {student.name}

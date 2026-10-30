@@ -15,6 +15,7 @@ import {
   Filter,
 } from 'lucide-react';
 import { AssessmentRecord } from './services/marksService';
+import { getAssetUrl } from './utils/assetUtils';
 
 interface SavedMarksReviewModalProps {
   record: AssessmentRecord;
@@ -127,9 +128,12 @@ export default function SavedMarksReviewModal({
               </div>
               <span className="bg-black text-white text-[10.5px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-2xs">
                 <img
-                  src="/assets/Dark Verified Check Badge.png"
+                  src={getAssetUrl('/assets/Dark Verified Check Badge.png')}
                   alt="Verified"
                   className="w-3.5 h-3.5 object-contain shrink-0"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
                 />
                 <span>PUBLISHED</span>
               </span>
@@ -223,9 +227,12 @@ export default function SavedMarksReviewModal({
                       {student.rollNo}
                     </span>
                     <img
-                      src={student.avatar}
+                      src={getAssetUrl(student.avatar)}
                       alt={student.name}
                       className="w-7 h-7 rounded-full object-cover shrink-0 border border-neutral-100"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
                     />
                     <div className="min-w-0">
                       <span className="text-[12.5px] font-semibold text-neutral-950 block truncate max-w-[130px]">

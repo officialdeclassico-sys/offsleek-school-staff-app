@@ -17,6 +17,7 @@ import { AttendanceRecord } from './services/attendanceService';
 import AnimatedStaffVerifiedBadge from './components/AnimatedStaffVerifiedBadge';
 import StaffStatusBar from './components/StaffStatusBar';
 import { triggerSuccessFeedback } from './utils/feedback';
+import { getAssetUrl } from './utils/assetUtils';
 
 interface AttendanceSavedProps {
   record: AttendanceRecord;
@@ -194,9 +195,12 @@ export default function AttendanceSaved({
                       {student.rollNo}
                     </span>
                     <img
-                      src={student.avatar}
+                      src={getAssetUrl(student.avatar)}
                       alt={student.name}
                       className="w-8 h-8 rounded-full object-cover shrink-0 border border-neutral-100"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
                     />
                     <span className="text-[13px] font-medium text-neutral-950 truncate">
                       {student.name}
@@ -241,9 +245,12 @@ export default function AttendanceSaved({
                       {student.rollNo}
                     </span>
                     <img
-                      src={student.avatar}
+                      src={getAssetUrl(student.avatar)}
                       alt={student.name}
                       className="w-8 h-8 rounded-full object-cover shrink-0 border border-neutral-100"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
                     />
                     <span className="text-[13px] font-medium text-neutral-950 truncate">
                       {student.name}

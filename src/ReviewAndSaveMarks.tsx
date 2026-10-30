@@ -18,6 +18,7 @@ import {
   saveAndPublishMarks,
 } from './services/marksService';
 import StaffStatusBar from './components/StaffStatusBar';
+import { getAssetUrl } from './utils/assetUtils';
 
 interface ReviewAndSaveMarksProps {
   assessmentData: {
@@ -229,9 +230,12 @@ export default function ReviewAndSaveMarks({
                 </span>
 
                 <img
-                  src={student.avatar}
+                  src={getAssetUrl(student.avatar)}
                   alt={student.name}
                   className="w-8 h-8 rounded-full object-cover shrink-0 border border-neutral-100"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
                 />
 
                 <span className="text-[13px] font-semibold text-neutral-950 truncate max-w-[120px] min-[360px]:max-w-[140px] sm:max-w-[160px]">

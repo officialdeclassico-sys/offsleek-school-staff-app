@@ -30,6 +30,7 @@ import {
 import { ASSIGNED_CLASSES } from './services/attendanceService';
 import StaffStatusBar from './components/StaffStatusBar';
 import { formatISTDateMedium } from './utils/dateTimeUtils';
+import { getAssetUrl } from './utils/assetUtils';
 
 interface AddMarksProps {
   initialData?: {
@@ -771,9 +772,12 @@ export default function AddMarks({
                       </span>
 
                       <img
-                        src={student.avatar}
+                        src={getAssetUrl(student.avatar)}
                         alt={student.name}
                         className="w-8 h-8 rounded-full object-cover shrink-0 border border-neutral-100"
+                        onError={(e) => {
+                          (e.target as HTMLElement).style.display = 'none';
+                        }}
                       />
 
                       <div className="min-w-0">

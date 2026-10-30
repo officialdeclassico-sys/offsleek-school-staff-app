@@ -6,6 +6,7 @@
 import React from 'react';
 import { X, Download, ShieldCheck, Award, QrCode, FileText, CheckCircle2 } from 'lucide-react';
 import VerifiedCheckBadge from '../components/VerifiedCheckBadge';
+import { getAssetUrl } from '../utils/assetUtils';
 
 export interface CertificateRecord {
   id: string;
@@ -64,9 +65,12 @@ export default function CertificateVerificationModal({
             <div className="text-center pb-3 border-b border-neutral-200">
               <div className="flex items-center justify-center gap-1.5 mb-1">
                 <img
-                  src="/assets/logo-ring.png"
+                  src={getAssetUrl('/assets/logo-ring.png')}
                   alt="Greenwood"
                   className="w-5 h-5 object-contain"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
                 />
                 <span className="font-extrabold text-[13px] tracking-tight text-neutral-950 uppercase font-sans">
                   GREENWOOD INTERNATIONAL SCHOOL

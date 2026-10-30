@@ -34,6 +34,7 @@ import {
   MAX_FILE_SIZE_BYTES,
 } from './services/homeworkService';
 import StaffStatusBar from './components/StaffStatusBar';
+import { getAssetUrl } from './utils/assetUtils';
 import {
   addDaysIST,
   formatISTDateKey,
@@ -686,7 +687,7 @@ export default function LogHomework({
 
                       {/* Avatar Image */}
                       <img
-                        src={student.avatar}
+                        src={getAssetUrl(student.avatar)}
                         alt={student.name}
                         className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover shrink-0 border border-neutral-100 shadow-2xs"
                         onError={(e) => {
