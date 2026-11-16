@@ -10,12 +10,14 @@ import {
   parseMonthYearToYearMonth,
 } from '../utils/dateTimeUtils';
 
+export type AttendanceStatusCode = 'P' | 'A' | 'L' | 'LT' | 'H';
+
 export interface Student {
   id: string;
   rollNo: string;
   name: string;
   avatar: string;
-  status: 'P' | 'A' | 'L' | null;
+  status: AttendanceStatusCode | null;
 }
 
 export interface AttendanceRecord {
@@ -30,6 +32,8 @@ export interface AttendanceRecord {
   presentCount: number;
   absentCount: number;
   onLeaveCount: number;
+  lateCount?: number;
+  halfDayCount?: number;
   students: Student[];
   savedAt: string;
   createdAt?: string;
@@ -161,6 +165,8 @@ export function getAttendanceRecords(): AttendanceRecord[] {
     presentCount: 38,
     absentCount: 3,
     onLeaveCount: 1,
+    lateCount: 0,
+    halfDayCount: 0,
     students: INITIAL_STUDENTS_5A,
     savedAt: '2026-10-14T08:58:00.000Z',
   };
@@ -189,7 +195,19 @@ export function findAttendanceRecord(
 }
 
 export function saveOrUpdateAttendance(
-  recordInput: Omit<AttendanceRecord, 'id' | 'totalStudents' | 'presentCount' | 'absentCount' | 'onLeaveCount' | 'savedAt' | 'createdAt' | 'updatedAt'>
+  recordInput: Omit<
+    AttendanceRecord,
+    | 'id'
+    | 'totalStudents'
+    | 'presentCount'
+    | 'absentCount'
+    | 'onLeaveCount'
+    | 'lateCount'
+    | 'halfDayCount'
+    | 'savedAt'
+    | 'createdAt'
+    | 'updatedAt'
+  >
 ): AttendanceRecord {
   const records = getAttendanceRecords();
   const existingIndex = records.findIndex(
@@ -202,6 +220,8 @@ export function saveOrUpdateAttendance(
   const presentCount = recordInput.students.filter((s) => s.status === 'P').length;
   const absentCount = recordInput.students.filter((s) => s.status === 'A').length;
   const onLeaveCount = recordInput.students.filter((s) => s.status === 'L').length;
+  const lateCount = recordInput.students.filter((s) => s.status === 'LT').length;
+  const halfDayCount = recordInput.students.filter((s) => s.status === 'H').length;
   const totalStudents = recordInput.students.length;
   const nowIso = getNowISO();
   const existingCreatedAt =
@@ -216,6 +236,8 @@ export function saveOrUpdateAttendance(
     presentCount,
     absentCount,
     onLeaveCount,
+    lateCount,
+    halfDayCount,
     savedAt: nowIso,
     createdAt: existingCreatedAt,
     updatedAt: nowIso,
@@ -239,7 +261,7 @@ export interface DailyAttendanceStatus {
   date: string; // e.g. "2026-10-01"
   dayName: string; // "Thu"
   dayNumber: number; // 1
-  status: 'P' | 'A' | 'L';
+  status: AttendanceStatusCode;
 }
 
 export interface StudentMonthlySummary {
@@ -256,6 +278,8 @@ export interface StudentMonthlySummary {
   presentDays: number;
   absentDays: number;
   onLeaveDays: number;
+  lateDays?: number;
+  halfDayDays?: number;
   attendancePercentage: number;
   remarks: string;
   teacherName: string;
@@ -416,7 +440,9 @@ function buildDefaultMonthlySummaries(grade: string, monthKey: string): StudentM
     const calculatedPresent = dailyRecords.filter((d) => d.status === 'P').length;
     const calculatedAbsent = dailyRecords.filter((d) => d.status === 'A').length;
     const calculatedLeave = dailyRecords.filter((d) => d.status === 'L').length;
-    const pct = Math.round((calculatedPresent / totalDays) * 100);
+    const calculatedLate = dailyRecords.filter((d) => d.status === 'LT').length;
+    const calculatedHalfDay = dailyRecords.filter((d) => d.status === 'H').length;
+    const pct = totalDays > 0 ? Math.round((calculatedPresent / totalDays) * 100) : 0;
 
     return {
       studentId: `std-5a-${seed.rollNo}`,
@@ -432,6 +458,8 @@ function buildDefaultMonthlySummaries(grade: string, monthKey: string): StudentM
       presentDays: calculatedPresent,
       absentDays: calculatedAbsent,
       onLeaveDays: calculatedLeave,
+      lateDays: calculatedLate,
+      halfDayDays: calculatedHalfDay,
       attendancePercentage: pct,
       remarks: seed.remarks,
       teacherName: 'Ms. Priya Sharma',
@@ -442,11 +470,73 @@ function buildDefaultMonthlySummaries(grade: string, monthKey: string): StudentM
   });
 }
 
+function hydrateAndMergeSavedDailyRecords(
+  summaries: StudentMonthlySummary[],
+  grade: string,
+  monthKey: string
+): StudentMonthlySummary[] {
+  const savedDaily = getAttendanceRecords().filter(
+    (r) =>
+      r.schoolId === 'greenwood-intl' &&
+      r.grade === grade &&
+      r.dateKey.startsWith(`${monthKey}-`) &&
+      Boolean(r.updatedAt)
+  );
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  return summaries.map((summary) => {
+    const dailyRecords = summary.dailyRecords.map((d) => ({ ...d }));
+
+    for (const dailyRec of savedDaily) {
+      const matchedStudent = dailyRec.students.find((st) => st.rollNo === summary.rollNo);
+      if (!matchedStudent || !matchedStudent.status) continue;
+
+      const existingIdx = dailyRecords.findIndex((d) => d.date === dailyRec.dateKey);
+      if (existingIdx >= 0) {
+        dailyRecords[existingIdx].status = matchedStudent.status;
+      } else {
+        const [, , dayStr] = dailyRec.dateKey.split('-');
+        const dayNum = parseInt(dayStr, 10);
+        const [y, m] = monthKey.split('-').map(Number);
+        const dow = new Date(Date.UTC(y, m - 1, dayNum, 12, 0, 0)).getUTCDay();
+        dailyRecords.push({
+          date: dailyRec.dateKey,
+          dayName: dayNames[dow] || '',
+          dayNumber: dayNum,
+          status: matchedStudent.status,
+        });
+        dailyRecords.sort((a, b) => a.date.localeCompare(b.date));
+      }
+    }
+
+    const totalWorkingDays = dailyRecords.length;
+    const presentDays = dailyRecords.filter((d) => d.status === 'P').length;
+    const absentDays = dailyRecords.filter((d) => d.status === 'A').length;
+    const onLeaveDays = dailyRecords.filter((d) => d.status === 'L').length;
+    const lateDays = dailyRecords.filter((d) => d.status === 'LT').length;
+    const halfDayDays = dailyRecords.filter((d) => d.status === 'H').length;
+    const attendancePercentage =
+      totalWorkingDays > 0 ? Math.round((presentDays / totalWorkingDays) * 100) : 0;
+
+    return {
+      ...summary,
+      totalWorkingDays,
+      presentDays,
+      absentDays,
+      onLeaveDays,
+      lateDays,
+      halfDayDays,
+      attendancePercentage,
+      dailyRecords,
+    };
+  });
+}
+
 export function getStudentMonthlySummaries(grade: string = 'Grade 5 - A', monthKey: string = formatISTMonthKey()): StudentMonthlySummary[] {
   try {
     const raw = localStorage.getItem(`${MONTHLY_STORAGE_KEY}_${grade}_${monthKey}`);
     if (raw) {
-      return JSON.parse(raw);
+      return hydrateAndMergeSavedDailyRecords(JSON.parse(raw), grade, monthKey);
     }
   } catch (err) {
     console.error('Failed to load monthly student summaries:', err);
@@ -458,7 +548,7 @@ export function getStudentMonthlySummaries(grade: string = 'Grade 5 - A', monthK
   } catch (err) {
     console.error('Failed to save seeded monthly summaries:', err);
   }
-  return seeded;
+  return hydrateAndMergeSavedDailyRecords(seeded, grade, monthKey);
 }
 
 export function getStudentMonthlySummary(
@@ -588,7 +678,7 @@ export function updateStudentDayAttendance(
   grade: string,
   monthKey: string,
   dateStr: string,
-  newStatus: 'P' | 'A' | 'L'
+  newStatus: AttendanceStatusCode
 ): StudentMonthlySummary {
   const summaries = getStudentMonthlySummaries(grade, monthKey);
   const studentIndex = summaries.findIndex((s) => s.studentId === studentId);
@@ -604,6 +694,8 @@ export function updateStudentDayAttendance(
     student.presentDays = student.dailyRecords.filter((d) => d.status === 'P').length;
     student.absentDays = student.dailyRecords.filter((d) => d.status === 'A').length;
     student.onLeaveDays = student.dailyRecords.filter((d) => d.status === 'L').length;
+    student.lateDays = student.dailyRecords.filter((d) => d.status === 'LT').length;
+    student.halfDayDays = student.dailyRecords.filter((d) => d.status === 'H').length;
     student.attendancePercentage = Math.round(
       (student.presentDays / student.totalWorkingDays) * 100
     );

@@ -3,11 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   X,
   Calendar,
-  Download,
   Share2,
   Check,
   Building2,
@@ -16,10 +15,13 @@ import {
   Trophy,
   FileText,
   Star,
-  Eye,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
-import { Announcement } from './services/announcementsService';
+import { Announcement, AnnouncementAttachment } from './services/announcementsService';
 import AnnouncementPdfModal from './AnnouncementPdfModal';
+import AnnouncementAttachmentRow from './components/AnnouncementAttachmentRow';
+import { downloadAnnouncementAttachment } from './utils/announcementAttachmentUtils';
 
 interface AnnouncementDetailModalProps {
   announcement: Announcement;
@@ -31,7 +33,64 @@ export default function AnnouncementDetailModal({
   onClose,
 }: AnnouncementDetailModalProps) {
   const [showPdfModal, setShowPdfModal] = useState(false);
+  const [pdfTriggerEl, setPdfTriggerEl] = useState<HTMLElement | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadToast, setDownloadToast] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const prevBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !showPdfModal) {
+        e.preventDefault();
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = prevBodyOverflow;
+      if (toastTimerRef.current !== null) {
+        window.clearTimeout(toastTimerRef.current);
+      }
+    };
+  }, [onClose, showPdfModal]);
+
+  const showDownloadToast = (type: 'success' | 'error', message: string) => {
+    if (toastTimerRef.current !== null) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+    setDownloadToast({ type, message });
+    toastTimerRef.current = window.setTimeout(() => {
+      setDownloadToast(null);
+      toastTimerRef.current = null;
+    }, 2800);
+  };
+
+  const handleDownload = async (attachment: AnnouncementAttachment) => {
+    if (isDownloading) return;
+    setIsDownloading(true);
+    try {
+      const filename = await downloadAnnouncementAttachment(attachment);
+      showDownloadToast('success', filename);
+    } catch (err) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : `Failed to download "${attachment.name}".`;
+      showDownloadToast('error', msg);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   const handleShare = () => {
     setCopiedLink(true);
@@ -80,14 +139,18 @@ export default function AnnouncementDetailModal({
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
-        <div className="bg-white w-full sm:max-w-[420px] rounded-t-[28px] sm:rounded-3xl shadow-2xl flex flex-col max-h-[88vh] overflow-hidden border border-neutral-200">
-          
-          {/* Top Grab Handle on mobile */}
-          <div className="sm:hidden w-12 h-1 bg-neutral-300 rounded-full mx-auto mt-2 mb-1" />
-
-          {/* Modal Header */}
-          <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-neutral-100">
+      <div
+        onClick={onClose}
+        className="absolute inset-0 w-full h-full z-40 bg-black/60 backdrop-blur-xs flex items-center justify-center overscroll-contain animate-in fade-in duration-200"
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => e.stopPropagation()}
+          className="announcement-detail-modal bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-neutral-200"
+        >
+          {/* Modal Header (Fixed) */}
+          <div className="shrink-0 flex items-center justify-between px-4 sm:px-5 py-3 border-b border-neutral-100">
             <div className="flex items-center gap-2">
               <span className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full ${config.badge}`}>
                 {announcement.category}
@@ -113,6 +176,7 @@ export default function AnnouncementDetailModal({
               <button
                 type="button"
                 onClick={onClose}
+                aria-label="Close announcement details"
                 className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100 transition cursor-pointer"
               >
                 <X className="w-4 h-4" />
@@ -120,8 +184,12 @@ export default function AnnouncementDetailModal({
             </div>
           </div>
 
-          {/* Modal Body */}
-          <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-4">
+          {/* Modal Body (Independently Scrollable, Hidden Scrollbar) */}
+          <div
+            className={`flex-1 min-h-0 px-4 sm:px-5 py-4 space-y-4 overflow-x-hidden overscroll-y-contain announcement-modal-scroll ${
+              showPdfModal ? 'overflow-y-hidden' : 'overflow-y-auto'
+            }`}
+          >
             
             {/* Title with Category Icon */}
             <div className="flex items-start gap-3">
@@ -140,19 +208,19 @@ export default function AnnouncementDetailModal({
             </div>
 
             {/* Publisher Metadata Card */}
-            <div className="bg-[#f8f9fa] border border-[#eef0f3] rounded-xl p-3 flex items-center justify-between">
-              <div>
+            <div className="bg-[#f8f9fa] border border-[#eef0f3] rounded-xl p-3 flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
                 <div className="text-[9.5px] uppercase font-semibold text-neutral-400 tracking-wider">
                   Published By
                 </div>
-                <div className="text-[12px] font-bold text-neutral-900 mt-0.5">
+                <div className="text-[12px] font-bold text-neutral-900 mt-0.5 truncate">
                   {announcement.publisher.name}
                 </div>
-                <div className="text-[10.5px] text-neutral-500">
+                <div className="text-[10.5px] text-neutral-500 leading-snug">
                   {announcement.publisher.role} • {announcement.publisher.department}
                 </div>
               </div>
-              <div className="flex items-center gap-1 text-[11px] text-neutral-600 bg-white px-2.5 py-1 rounded-lg border border-neutral-200/80 shadow-2xs">
+              <div className="shrink-0 whitespace-nowrap flex items-center gap-1 text-[11px] text-neutral-600 bg-white px-2.5 py-1 rounded-lg border border-neutral-200/80 shadow-2xs">
                 <Users className="w-3 h-3 text-neutral-500" />
                 <span>All Parents</span>
               </div>
@@ -169,44 +237,16 @@ export default function AnnouncementDetailModal({
                 <div className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-1.5">
                   Attached Document (1)
                 </div>
-                <div className="bg-[#f8f9fa] border border-[#eef0f3] rounded-2xl p-3 flex items-center justify-between hover:bg-neutral-100/80 transition">
-                  <div
-                    onClick={() => setShowPdfModal(true)}
-                    className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
-                  >
-                    {/* Red PDF Icon badge */}
-                    <div className="w-9 h-9 bg-[#e53935] rounded-xl flex flex-col items-center justify-center text-white shrink-0 shadow-xs">
-                      <span className="text-[9px] font-black tracking-tight leading-none">PDF</span>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[12.5px] font-semibold text-neutral-900 truncate">
-                        {announcement.attachment.name}
-                      </div>
-                      <div className="text-[10.5px] text-neutral-500 mt-0.5">
-                        {announcement.attachment.size} • Tap to preview
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowPdfModal(true)}
-                      className="p-2 rounded-xl text-neutral-600 hover:text-black hover:bg-white transition cursor-pointer border border-transparent hover:border-neutral-200"
-                      title="Preview PDF"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowPdfModal(true)}
-                      className="p-2 rounded-xl text-neutral-600 hover:text-black hover:bg-white transition cursor-pointer border border-transparent hover:border-neutral-200"
-                      title="Download PDF"
-                    >
-                      <Download className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
+                <AnnouncementAttachmentRow
+                  attachment={announcement.attachment}
+                  isDownloading={isDownloading}
+                  className="mt-0!"
+                  onPreview={(triggerEl) => {
+                    setPdfTriggerEl(triggerEl || null);
+                    setShowPdfModal(true);
+                  }}
+                  onDownload={() => handleDownload(announcement.attachment!)}
+                />
               </div>
             )}
 
@@ -221,8 +261,8 @@ export default function AnnouncementDetailModal({
 
           </div>
 
-          {/* Modal Footer */}
-          <div className="px-4 sm:px-5 py-3 bg-[#fafbfc] border-t border-neutral-100 flex items-center justify-end">
+          {/* Modal Footer (Fixed) */}
+          <div className="shrink-0 px-4 sm:px-5 py-3 bg-[#fafbfc] border-t border-neutral-100 flex items-center justify-end">
             <button
               type="button"
               onClick={onClose}
@@ -241,7 +281,32 @@ export default function AnnouncementDetailModal({
           attachment={announcement.attachment}
           announcementTitle={announcement.title}
           onClose={() => setShowPdfModal(false)}
+          onDownload={handleDownload}
+          isDownloading={isDownloading}
+          returnFocusTo={pdfTriggerEl}
         />
+      )}
+
+      {/* Download Success / Error Toast (Student Portal Spec) */}
+      {downloadToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={`absolute top-4 left-1/2 -translate-x-1/2 z-[70] text-white text-xs px-4 py-2 rounded-full shadow-lg flex items-center gap-2 max-w-[calc(100%-24px)] ${
+            downloadToast.type === 'success' ? 'bg-black' : 'bg-rose-600'
+          }`}
+        >
+          {downloadToast.type === 'success' ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          ) : (
+            <AlertCircle className="w-4 h-4 text-white shrink-0" />
+          )}
+          <span className="truncate font-medium">
+            {downloadToast.type === 'success'
+              ? `Downloaded ${downloadToast.message}`
+              : downloadToast.message}
+          </span>
+        </div>
       )}
     </>
   );

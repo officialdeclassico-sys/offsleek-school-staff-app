@@ -20,6 +20,8 @@ import AttendanceModuleScreen from './AttendanceModuleScreen';
 import MyRequestsScreen from './MyRequestsScreen';
 import MyDocumentsScreen from './MyDocumentsScreen';
 import MyAttendanceScreen from './MyAttendanceScreen';
+import SchoolCalendarScreen from './SchoolCalendarScreen';
+import { CalendarEventDetail } from './services/calendarService';
 import LeaveRequestFormScreen from './LeaveRequestFormScreen';
 import LeaveRequestSubmittedScreen from './LeaveRequestSubmittedScreen';
 import ParentLeaveApprovalsScreen from './ParentLeaveApprovalsScreen';
@@ -75,7 +77,8 @@ type Screen =
   | 'HOMEWORK_ASSIGNED_SUCCESS'
   | 'VIEW_ASSIGNED_HOMEWORK'
   | 'MY_DOCUMENTS'
-  | 'MY_ATTENDANCE';
+  | 'MY_ATTENDANCE'
+  | 'SCHOOL_CALENDAR';
 
 
 export default function App() {
@@ -127,6 +130,13 @@ export default function App() {
   // Homework Assignment Flow states (Draft & Published Record)
   const [homeworkDraft, setHomeworkDraft] = useState<HomeworkDraft | null>(null);
   const [assignedHomeworkRecord, setAssignedHomeworkRecord] = useState<HomeworkRecord | null>(null);
+
+  // Selected Upcoming Event / target date for School Calendar navigation
+  const [calendarNavTarget, setCalendarNavTarget] = useState<{
+    event?: CalendarEventDetail;
+    dateKey?: string;
+    highlightEventId?: string;
+  } | null>(null);
 
   // Inline validation state for login
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
@@ -245,7 +255,7 @@ export default function App() {
     <div className="min-h-screen w-full bg-[#141820] flex items-center justify-center p-0 sm:p-4 md:p-6 overflow-x-hidden select-none antialiased">
       
       {/* Unified notch-free mobile device container across Login and all Staff Portal screens */}
-      <div className="relative w-full sm:max-w-[390px] h-screen sm:h-[844px] sm:max-h-[880px] bg-white sm:rounded-[40px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.7),0_0_0_1px_rgba(255,255,255,0.08)] overflow-hidden flex flex-col justify-between">
+      <div className="relative isolate w-full sm:max-w-[390px] h-screen sm:h-[844px] sm:max-h-[880px] bg-white sm:rounded-[40px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.7),0_0_0_1px_rgba(255,255,255,0.08)] overflow-hidden flex flex-col justify-between">
         
         {/* Screen 1: Dashboard */}
         {currentScreen === 'DASHBOARD' && (
@@ -282,6 +292,20 @@ export default function App() {
               setHomeworkDraft(null);
               setPreviousScreen(currentScreen);
               setCurrentScreen('LOG_HOMEWORK');
+            }}
+            onOpenSchoolCalendar={() => {
+              setCalendarNavTarget(null);
+              setPreviousScreen(currentScreen);
+              setCurrentScreen('SCHOOL_CALENDAR');
+            }}
+            onSelectCalendarEvent={(event) => {
+              setCalendarNavTarget({
+                event,
+                dateKey: event.dateKey,
+                highlightEventId: event.id,
+              });
+              setPreviousScreen(currentScreen);
+              setCurrentScreen('SCHOOL_CALENDAR');
             }}
           />
         )}
@@ -444,6 +468,34 @@ export default function App() {
               setCurrentScreen('MY_REQUESTS');
             }}
             onNavigateProfile={() => {
+              setPreviousScreen(currentScreen);
+              setCurrentScreen('PROFILE');
+            }}
+          />
+        )}
+
+        {/* Screen: School Calendar Screen */}
+        {currentScreen === 'SCHOOL_CALENDAR' && (
+          <SchoolCalendarScreen
+            initialDateKey={calendarNavTarget?.dateKey}
+            initialEvent={calendarNavTarget?.event || null}
+            highlightEventId={calendarNavTarget?.highlightEventId}
+            onBack={() => {
+              setCalendarNavTarget(null);
+              setCurrentScreen('DASHBOARD');
+            }}
+            onNavigateHome={() => {
+              setCalendarNavTarget(null);
+              setCurrentScreen('DASHBOARD');
+            }}
+            onNavigateAttendance={handleOpenAttendanceModule}
+            onNavigateAnnouncements={() => {
+              setCalendarNavTarget(null);
+              setPreviousScreen(currentScreen);
+              setCurrentScreen('ANNOUNCEMENTS');
+            }}
+            onNavigateProfile={() => {
+              setCalendarNavTarget(null);
               setPreviousScreen(currentScreen);
               setCurrentScreen('PROFILE');
             }}

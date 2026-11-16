@@ -1,0 +1,1191 @@
+# OFFSLEEK
+## MASTER SYSTEM ARCHITECTURE & CROSS-PORTAL INTEGRATION BLUEPRINT
+
+**Document Type:** Master Platform Architecture  
+**Version:** 1.0  
+**Platform:** OFFSLEEK  
+**Parent Company:** Sevnteen Innovations Private Limited (planned parent-company structure)  
+**Backend:** Shared Firebase Infrastructure  
+**Database:** Cloud Firestore  
+**Primary Region:** asia-south1 (Mumbai)  
+**Status:** Architecture reference for all five applications
+
+---
+
+# 1. PLATFORM IDENTITY
+
+OFFSLEEK is one unified school-management technology ecosystem consisting of five separate applications that operate on a common backend.
+
+The five applications are not independent products. They are five different interfaces to the same school-management platform.
+
+Each application has a specific responsibility, user group and set of permissions.
+
+All five applications must follow one common architecture, data model, naming convention, identity system and integration standard.
+
+### Core architectural principle
+
+**One OFFSLEEK platform. Five applications. One shared backend. One consistent source of truth.**
+
+The applications must remain separate projects. Do not merge their codebases into one application.
+
+---
+
+# 2. THE FIVE OFFSLEEK APPLICATIONS
+
+## Application 1: Super Admin Dashboard
+
+**Purpose:** Company-wide control centre for the OFFSLEEK CEO and authorized super administrators.
+
+Responsibilities:
+
+- Monitor all registered schools.
+- View company-wide school statistics.
+- Monitor school subscriptions and payment status.
+- Monitor internal company operations.
+- View school onboarding status.
+- Monitor support tickets.
+- Monitor platform activity.
+- Manage company-level departments.
+- Manage internal staff and organizational hierarchy.
+- Manage permission templates.
+- Monitor application health and operational performance.
+- View authorized reports across schools.
+
+Data ownership:
+- Company-level configuration.
+- School registration and platform identity.
+- Internal company records.
+- Platform-level monitoring records.
+
+The Super Admin Dashboard must not become the place where ordinary school-level operational records are independently maintained.
+
+It should consume the relevant data from the shared backend.
+
+## Application 2: Super Admin Staff Dashboard
+
+**Purpose:** Internal OFFSLEEK employee workspace.
+
+Users:
+- Sales team
+- Support team
+- HR team
+- Finance team
+- Technical team
+- Other authorized internal departments
+
+Responsibilities:
+
+- Add new schools to OFFSLEEK.
+- Create school profiles.
+- Manage school onboarding.
+- Maintain school contact information.
+- Manage internal customer relationships.
+- Handle support operations.
+- Manage assigned internal workflows.
+- Maintain school account and onboarding records.
+- Perform department-specific operations according to assigned permissions.
+
+When an authorized employee creates a new school, the school identity must be registered in the shared backend.
+
+The Super Admin Dashboard must be able to see that same school record.
+
+School OS must be able to identify the registered school using its unique school ID.
+
+Do not create separate, unrelated school records in each application.
+
+## Application 3: School OS
+
+**Purpose:** Central school administration system.
+
+Users:
+- School owner
+- Principal
+- School administrator
+- Authorized administrative staff
+
+Responsibilities:
+
+### School management
+- School profile
+- Academic years
+- Classes and sections
+- School departments
+- Staff directory
+- Student directory
+
+### Admissions
+- New admission
+- Student registration
+- Student profiles
+- Document management
+- Admission status
+- Student identification
+
+### Academics
+- Classes and sections
+- Subjects
+- Class assignments
+- Teacher assignments
+- Academic planning
+
+### Attendance
+- Class-wise attendance overview
+- Submitted and pending attendance
+- Attendance history
+- Attendance activity logs
+- Teacher attendance monitoring
+
+### Enrollment
+- Promote students
+- Renewal payments
+- Enrollment history
+- Academic-year enrollment records
+
+### Staff management
+- Staff registration
+- Staff profiles
+- Teaching assignments
+- Non-teaching assignments
+- Employment documents
+- Staff renewal records
+
+### School calendar
+- Holidays
+- Examinations
+- Events
+- Meetings
+- Activities
+- Published announcements
+
+### Library
+- Book catalog
+- Book copies
+- Issue and return
+- Library members
+- Transactions
+
+### Support
+- Raise support tickets with OFFSLEEK
+- Track ticket status
+- Communicate with the OFFSLEEK support team
+- View platform announcements
+
+School OS is the main administrative interface for school-level records.
+
+## Application 4: Staff Application
+
+**Purpose:** Daily operational workspace for school employees.
+
+Users:
+- Teachers
+- Class teachers
+- Subject teachers
+- Non-teaching staff
+- Authorized school employees
+
+Responsibilities:
+
+- View assigned classes and sections.
+- View assigned subjects.
+- View assigned students.
+- Take student attendance.
+- Submit attendance.
+- View attendance submission status.
+- Edit attendance where authorized and within the allowed correction workflow.
+- Publish examination results.
+- Assign homework.
+- View homework submissions where supported.
+- Apply for leave.
+- View leave status.
+- Process authorized parent leave requests.
+- View school calendar.
+- Receive relevant school announcements.
+
+The Staff Application must not create an independent student database.
+
+It must use the student, class, section and teacher records belonging to the same school in School OS.
+
+A teacher must only access the classes, sections and records authorized for that teacher.
+
+## Application 5: Parent & Student Application
+
+**Purpose:** One application with a Parent/Student login selection or account-mode switch.
+
+The Parent and Student experiences must remain separate within the same application.
+
+### Parent mode
+
+Responsibilities:
+
+- View linked child profiles.
+- View attendance.
+- View examination results.
+- View homework.
+- View school announcements.
+- View school calendar.
+- Apply for leave.
+- Apply for school documents.
+- View relevant fee information.
+- Track relevant requests.
+
+Parents must only see children explicitly linked to their parent account.
+
+### Student mode
+
+Responsibilities:
+
+- View personal profile information.
+- View own attendance.
+- View published examination results.
+- View homework.
+- View school calendar.
+- View school announcements.
+- View relevant academic information.
+
+Student mode is primarily read-only.
+
+Students must not access another student's personal or academic records.
+
+---
+
+# 3. SHARED BACKEND ARCHITECTURE
+
+All five applications must use the same Firebase project.
+
+### Existing Firebase project
+
+Project ID: `offsleek-shared-backend`
+
+Existing configuration:
+
+- Firebase Authentication enabled with Email/Password.
+- Cloud Firestore default database.
+- Firestore region: `asia-south1`.
+- Firebase modular SDK.
+- Shared Firebase initialization using the singleton pattern.
+
+The existing Firebase configuration must be preserved.
+
+Every application must initialize Firebase using the existing project configuration and must not accidentally initialize a separate Firebase project.
+
+### Architecture diagram
+
+```text
+                  OFFSLEEK PLATFORM
+                          |
+          ---------------------------------
+          |               |               |
+     Super Admin      Internal Staff    School OS
+      Dashboard        Dashboard
+          |               |               |
+          --------------- | ---------------
+                          |
+                SHARED FIREBASE BACKEND
+                          |
+          ---------------------------------
+          |               |               |
+      Firestore      Firebase Auth    Cloud Storage
+          |
+     Shared School Data
+          |
+          -------------------------------
+          |                             |
+      Staff App                  Parent & Student App
+          |                             |
+          -------- Shared Records -------
+```
+
+Cloud Functions or another trusted server-side service may be introduced for sensitive operations, payment verification, privileged writes and notifications. These services must be implemented and deployed separately; do not assume they already exist.
+
+### Important
+
+Firebase configuration alone does not mean an application is integrated.
+
+Each application must actually:
+- Authenticate users.
+- Read authorized records.
+- Write permitted records.
+- Listen for relevant updates.
+- Handle errors and loading states.
+- Enforce school-level data isolation.
+
+---
+
+# 4. SINGLE SOURCE OF TRUTH
+
+The shared Firestore database must be the authoritative source of operational school data.
+
+Avoid separate independent copies of:
+- Students
+- Parents
+- Staff
+- Classes
+- Sections
+- Attendance
+- Results
+- Homework
+- Calendar events
+- Enrollment records
+
+Each application may use local UI state or a temporary cache, but persistent operational records must follow the shared data architecture.
+
+### Example
+
+When a teacher submits attendance in the Staff Application:
+
+1. The Staff Application validates the teacher's identity and assignment.
+2. The attendance submission is saved to the shared backend.
+3. School OS reads the same attendance record.
+4. Parent Application reads attendance for linked children.
+5. Student Application reads the student's own attendance.
+6. Super Admin can monitor relevant activity through authorized reporting.
+
+There must not be five different attendance records representing five copies of the same submission.
+
+---
+
+# 5. COMMON DATA ARCHITECTURE
+
+Every school-level entity must have a stable unique ID and a `schoolId`.
+
+All school-level records must be scoped to their school.
+
+Recommended common fields:
+
+```typescript
+interface BaseSchoolEntity {
+  id: string;
+  schoolId: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  createdBy: string;
+  updatedBy?: string;
+  environment?: "PRODUCTION" | "TEST";
+}
+```
+
+Additional fields must be added according to the entity.
+
+Do not force inappropriate fields into every record.
+
+### Core entities
+
+| Entity | Purpose |
+|---|---|
+| schools | Registered schools |
+| academicYears | Academic-year management |
+| classes | School classes |
+| sections | Class sections |
+| students | Permanent student profiles |
+| parents | Parent profiles |
+| parentStudentLinks | Parent-child relationships |
+| staff | Employee profiles |
+| teacherAssignments | Teacher-class-section assignments |
+| studentEnrollments | Annual student enrollment |
+| staffEnrollments | Annual staff enrollment |
+| attendanceBatches | Attendance submissions |
+| attendanceRecords | Individual student attendance |
+| subjects | Academic subjects |
+| results | Published academic results |
+| homework | Homework assignments |
+| homeworkSubmissions | Student submissions |
+| calendarEvents | School events |
+| libraryBooks | Book catalog |
+| libraryCopies | Individual physical copies |
+| libraryTransactions | Issue and return history |
+| leaveRequests | Leave applications |
+| documentRequests | Document applications |
+| supportTickets | School support requests |
+| announcements | School announcements |
+| notifications | User notifications |
+| auditLogs | Important activity history |
+
+The names above are the recommended logical entity names. Map them to existing collections where appropriate rather than blindly renaming or migrating collections.
+
+---
+
+# 6. SCHOOL IDENTITY AND MULTI-TENANT ISOLATION
+
+OFFSLEEK is a multi-school platform.
+
+Each school is an independent tenant.
+
+For example:
+
+```text
+OFFSLEEK
+  |
+  |-- School A
+  |     |-- Students
+  |     |-- Parents
+  |     |-- Staff
+  |     |-- Classes
+  |     |-- Attendance
+  |
+  |-- School B
+  |     |-- Students
+  |     |-- Parents
+  |     |-- Staff
+  |     |-- Classes
+  |     |-- Attendance
+  |
+  |-- School C
+        |-- Students
+        |-- Parents
+        |-- Staff
+        |-- Classes
+        |-- Attendance
+```
+
+Every school-level read and write must be restricted to the authenticated user's authorized school.
+
+A school ID supplied by a client must never be trusted on its own.
+
+The backend must verify that the authenticated user is authorized to access that school.
+
+Super Admin access across schools must be explicitly authorized.
+
+Internal staff must only access the school information permitted by their department and assigned permissions.
+
+Parents and students must not gain access to records by changing a school ID, student ID or document ID in the frontend.
+
+---
+
+# 7. IDENTITY, AUTHENTICATION AND AUTHORIZATION
+
+Firebase Authentication is the shared identity foundation.
+
+Each portal must use a consistent identity model.
+
+A user account should be associated with:
+
+- Firebase UID
+- User type
+- School ID, where applicable
+- Related student or staff ID, where applicable
+- Account status
+- Assigned roles
+- Permissions
+
+Recommended user types:
+
+```text
+SUPER_ADMIN
+INTERNAL_STAFF
+SCHOOL_ADMIN
+PRINCIPAL
+TEACHER
+NON_TEACHING_STAFF
+PARENT
+STUDENT
+```
+
+These are proposed role identifiers, not proof that all roles are already implemented.
+
+### Role examples
+
+| Role | Permitted access |
+|---|---|
+| Super Admin | Authorized platform-wide oversight |
+| Internal Staff | Assigned internal operations |
+| School Admin | Authorized school-level management |
+| Teacher | Assigned classes, subjects and students |
+| Parent | Explicitly linked children |
+| Student | Own permitted records |
+
+Permissions must be enforced by trusted backend rules and services, not just by hiding buttons in the frontend.
+
+### Critical rule
+
+A frontend route guard is not a security boundary.
+
+Firestore Security Rules and trusted backend validation must enforce the actual permissions.
+
+Do not weaken rules to make a demo login or test dataset work.
+
+---
+
+# 8. CROSS-PORTAL DATA FLOWS
+
+These workflows define how the five applications must cooperate.
+
+## Workflow A: School creation
+
+1. Internal Staff Dashboard creates a school profile.
+2. Backend assigns a unique school ID.
+3. The school record is saved in the shared database.
+4. Super Admin Dashboard can see the new school.
+5. School OS identifies the school and can initialize its administrative workspace.
+6. School-specific users and records are linked to that school ID.
+
+## Workflow B: Student admission
+
+1. School Admin creates a student profile in School OS.
+2. Student details and documents are saved in the appropriate backend records.
+3. The parent relationship is created explicitly.
+4. A student account or invitation is created through an authorized process.
+5. Staff Application can access the student roster for assigned classes.
+6. Parent Application can access the linked child.
+7. Student Application can access the student's own permitted profile.
+
+Existing OFFSLEEK admission and annual enrollment/payment rules must be preserved.
+
+For student annual enrollment:
+- Permanent student profile remains the same.
+- Each academic year gets a separate enrollment record.
+- Annual registration fee is ₹500.
+- Promotion must preserve the permanent Student ID.
+- Each student is processed individually.
+- Enrollment becomes active only after verified payment or authorized offline payment recording.
+
+## Workflow C: Staff onboarding
+
+1. Authorized school admin registers a staff member in School OS.
+2. Staff profile is saved using a stable staff ID.
+3. Teaching or non-teaching assignments are created.
+4. An authorized user account is linked to the staff record.
+5. Staff Application reads the assigned profile and permissions.
+6. Teacher sees only authorized classes, sections and subjects.
+
+Existing staff annual registration/payment requirements must be preserved:
+- ₹500 per academic year.
+- Staff member is the payer.
+- Payment records must remain separate from salary and payroll.
+- Account activation requires the defined payment verification process.
+
+## Workflow D: Attendance
+
+1. Teacher logs into Staff Application.
+2. Teacher selects an assigned class and section.
+3. Application loads the correct school roster.
+4. Teacher marks students Present, Absent or Leave.
+5. Teacher submits attendance.
+6. Shared backend stores the attendance batch and individual records.
+7. School OS displays updated class attendance.
+8. Parent Application displays the linked child's attendance.
+9. Student Application displays the student's own attendance.
+
+Attendance must be associated with:
+- School ID
+- Academic year
+- Attendance date
+- Class ID
+- Section ID
+- Teacher ID
+- Student ID
+
+Submitted and draft records must be distinguishable.
+
+Corrections must be authorized and audited.
+
+## Workflow E: Examination results
+
+1. Authorized staff creates or enters examination results.
+2. Results are saved against the correct student and academic context.
+3. Authorized publication makes the results visible.
+4. School OS can view and monitor results.
+5. Parent Application displays published results for linked children.
+6. Student Application displays published results for the logged-in student.
+
+Draft or unpublished results must not appear in Parent or Student Application.
+
+## Workflow F: Homework
+
+1. Teacher creates homework for an assigned class or section.
+2. Homework is saved centrally.
+3. Relevant students can view the assignment.
+4. Parent Application can display relevant homework information.
+5. Student Application displays the student's assignments.
+6. Submissions, if supported, are linked to the correct homework and student.
+
+## Workflow G: School calendar
+
+1. School Admin creates an event in School OS.
+2. Draft events remain administrative.
+3. Publishing makes the event available to its target audience.
+4. Staff Application displays relevant staff events.
+5. Parent Application displays relevant parent events.
+6. Student Application displays relevant student events.
+7. Updates and cancellations propagate through the shared backend.
+
+## Workflow H: Support tickets
+
+1. School Admin raises a ticket in School OS.
+2. The ticket is saved in the shared support system.
+3. Internal Staff Dashboard displays the ticket to authorized support employees.
+4. Assigned staff responds or updates the ticket.
+5. School OS displays the latest response and status.
+6. Internal notes remain invisible to the school.
+
+---
+
+# 9. FIRESTORE ARCHITECTURE
+
+Use a consistent Firestore structure.
+
+A recommended logical structure is:
+
+```text
+platform/
+  configuration/
+
+schools/
+  {schoolId}/
+
+  academicYears/
+    {academicYearId}
+
+  classes/
+    {classId}
+
+  sections/
+    {sectionId}
+
+  students/
+    {studentId}
+
+  parents/
+    {parentId}
+
+  parentStudentLinks/
+    {linkId}
+
+  staff/
+    {staffId}
+
+  teacherAssignments/
+    {assignmentId}
+
+  studentEnrollments/
+    {enrollmentId}
+
+  staffEnrollments/
+    {enrollmentId}
+
+  attendanceBatches/
+    {attendanceBatchId}
+
+  attendanceRecords/
+    {attendanceRecordId}
+
+  subjects/
+    {subjectId}
+
+  results/
+    {resultId}
+
+  homework/
+    {homeworkId}
+
+  homeworkSubmissions/
+    {submissionId}
+
+  calendarEvents/
+    {eventId}
+
+  libraryBooks/
+    {bookId}
+
+  libraryCopies/
+    {copyId}
+
+  libraryTransactions/
+    {transactionId}
+
+  leaveRequests/
+    {requestId}
+
+  documentRequests/
+    {requestId}
+
+  announcements/
+    {announcementId}
+
+  notifications/
+    {notificationId}
+
+  auditLogs/
+    {logId}
+
+users/
+  {uid}/
+
+internalDepartments/
+  {departmentId}
+
+internalEmployees/
+  {employeeId}
+
+permissionTemplates/
+  {templateId}
+
+supportTickets/
+  {ticketId}
+```
+
+This is a logical target architecture.
+
+Before implementing it, inspect existing Firestore collections and existing application code. Reuse compatible existing collections and avoid destructive migrations.
+
+For school-level data, prefer a consistent tenant-scoped structure.
+
+Do not mix school records with unrelated platform-level records.
+
+Do not assume that the proposed collection names already exist.
+
+---
+
+# 10. REAL-TIME SYNCHRONIZATION
+
+Where real-time updates are required, use Firestore listeners such as `onSnapshot`.
+
+Examples:
+
+- Staff submits attendance → School OS updates.
+- School Admin publishes calendar event → other portals update.
+- Teacher publishes results → relevant Parent and Student views update.
+- Support team replies → School OS ticket view updates.
+
+Every listener must:
+- Use the correct school scope.
+- Respect user authorization.
+- Unsubscribe when the component is removed or the user changes context.
+- Handle errors.
+- Handle loading and empty states.
+- Avoid duplicate listeners.
+- Avoid leaking data across account changes.
+
+Do not poll unnecessarily if a suitable real-time listener is available.
+
+---
+
+# 11. FILES AND DOCUMENT STORAGE
+
+Use Firebase Storage for documents and files where appropriate.
+
+Examples:
+- Student profile photos
+- Admission documents
+- Staff documents
+- Examination attachments
+- Homework attachments
+- School event attachments
+- Library cover images
+
+Suggested logical paths:
+
+```text
+schools/{schoolId}/students/{studentId}/
+schools/{schoolId}/staff/{staffId}/
+schools/{schoolId}/events/{eventId}/
+schools/{schoolId}/homework/{homeworkId}/
+```
+
+Storage access must be restricted using authenticated user identity, school membership and appropriate permissions.
+
+Sensitive documents must not be exposed through unrestricted public URLs.
+
+Validate file types and sizes.
+
+---
+
+# 12. PAYMENTS AND TRUSTED OPERATIONS
+
+Payment-sensitive operations must be verified by a trusted backend.
+
+Examples:
+- Student annual registration fee.
+- Staff annual registration fee.
+- School subscriptions.
+- Other configured school payments.
+
+A successful frontend redirect must not be treated as proof of payment.
+
+Payment verification must use a trusted payment provider callback/webhook and backend verification.
+
+Only after successful verification should the corresponding enrollment or payment status become Paid or Active.
+
+Offline payments may be recorded by authorized users with:
+- Amount
+- Payment method
+- Date
+- Reference or receipt
+- Recording administrator
+- Audit history
+
+Do not expose payment secrets or privileged credentials in frontend code.
+
+Do not invent payment provider integrations or claim payment verification is active until configured and tested.
+
+---
+
+# 13. AUDIT LOGGING
+
+Important operations must be auditable.
+
+Examples:
+- Student created or updated.
+- Staff created or updated.
+- Attendance submitted.
+- Attendance corrected.
+- Results published.
+- Leave approved or rejected.
+- Enrollment promoted.
+- Payment recorded.
+- Calendar event published or cancelled.
+- Support ticket updated.
+
+Recommended audit fields:
+
+```typescript
+interface AuditLog {
+  id: string;
+  schoolId?: string;
+  actorUid: string;
+  actorRole: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  timestamp: Timestamp;
+  metadata?: Record<string, unknown>;
+}
+```
+
+Audit records must be created through trusted operations where necessary and protected from unauthorized modification.
+
+---
+
+# 14. DEVELOPMENT AND ENVIRONMENT STRATEGY
+
+OFFSLEEK must distinguish test data from production data.
+
+Use explicit environment identifiers.
+
+```text
+PRODUCTION
+TEST
+DEVELOPMENT
+```
+
+Do not mix test and production records.
+
+### Current Greenwood test environment
+
+Use the following isolated test school:
+
+School: Greenwood International School  
+School ID: SCH-001  
+School code: GWS001  
+Academic year: 2026-27  
+Board: CBSE  
+City: Hyderabad  
+State: Telangana  
+Environment: TEST
+
+Class:
+- Class ID: CLS-005
+- Section ID: SEC-005-A
+- Class 5 – Section A
+
+Student:
+- Student ID: STU-001
+- Admission number: GWS-2026-001
+- Name: Aarav Sharma
+- Roll number: 01
+- Parent ID: PAR-001
+
+Parent:
+- Parent ID: PAR-001
+- Name: Rajesh Sharma
+- Relationship: Father
+- Phone: +91 90000 00001
+- Email: rajesh.test@example.com
+
+Teacher:
+- Staff ID: TCH-001
+- Employee ID: GWS-T-001
+- Name: Priya Sharma
+- Designation: Class Teacher
+- Department: Academics
+- Subject: Mathematics
+
+Attendance:
+- Attendance ID: ATT-SCH001-20261116-CLS005-SECA
+- Date: 2026-11-16
+- Student: STU-001
+- Status: Present
+- Submission status: Submitted
+
+These are fictional testing details.
+
+The existing Riverdale International School data must remain unchanged.
+
+Existing Riverdale identity:
+- RIS-2026
+- Riverdale International School
+- Academic year: 2025 – 2026
+
+Never merge Greenwood and Riverdale records based on names.
+
+Never change existing Riverdale IDs.
+
+---
+
+# 15. COMMON DEVELOPMENT STANDARDS
+
+All five applications must follow these standards.
+
+### Technology
+- React
+- TypeScript
+- Existing application framework and build configuration
+- Firebase modular SDK
+- Shared Firestore data model
+
+### Coding standards
+- Strong TypeScript typing.
+- Reusable data-access services.
+- Consistent entity IDs.
+- Consistent field names.
+- Centralized Firebase initialization.
+- No duplicate Firebase app initialization.
+- No hardcoded production credentials.
+- No uncontrolled localStorage as the permanent source of truth.
+- No fake successful API responses.
+- No fabricated real-time synchronization.
+
+### Data-access pattern
+
+Separate application UI from data access.
+
+Recommended logical organization:
+
+```text
+src/
+  lib/
+    firebase.ts
+
+  services/
+    schoolService.ts
+    studentService.ts
+    parentService.ts
+    staffService.ts
+    attendanceService.ts
+    enrollmentService.ts
+    resultsService.ts
+    homeworkService.ts
+    calendarService.ts
+
+  types/
+    school.ts
+    student.ts
+    parent.ts
+    staff.ts
+    attendance.ts
+
+  context/
+    AuthContext.tsx
+    SchoolContext.tsx
+```
+
+Adapt this structure to each existing application's architecture.
+
+Do not replace working application structures just to match this suggested folder layout.
+
+---
+
+# 16. UI AND UX CONSISTENCY
+
+The five portals must retain their own purpose and user experience.
+
+Do not make all five applications look identical.
+
+However, they should share:
+- OFFSLEEK identity.
+- Consistent naming.
+- Consistent terminology.
+- Consistent data labels.
+- Consistent status definitions.
+- Consistent interaction logic where applicable.
+
+### School OS design standard
+
+The existing School OS design direction is:
+
+- White backgrounds.
+- Black active navigation.
+- Black primary buttons.
+- Neutral grey borders and secondary elements.
+- Green, amber and red only for semantic statuses where appropriate.
+
+Do not introduce red active navigation or red selected buttons.
+
+Do not redesign existing pages unless explicitly requested.
+
+Preserve existing layouts and workflows while implementing backend functionality.
+
+---
+
+# 17. IMPLEMENTATION ROADMAP
+
+The complete ecosystem should be implemented in controlled phases.
+
+## Phase 1 — Architecture and data foundation
+- Establish the shared architecture.
+- Audit all five Firebase configurations.
+- Establish consistent entity IDs.
+- Establish school-level isolation.
+- Confirm Firebase Auth and Firestore security rules.
+- Establish the shared data contracts.
+- Create the isolated Greenwood test dataset.
+
+## Phase 2 — School identity and onboarding
+- Internal Staff Dashboard creates a school.
+- Super Admin Dashboard reads the school.
+- School OS identifies the school.
+- School-level user relationships are established.
+
+## Phase 3 — Student and staff foundation
+- Student profiles.
+- Parent profiles.
+- Parent-student relationships.
+- Staff profiles.
+- Teacher assignments.
+- Class and section assignments.
+
+## Phase 4 — Attendance integration
+- Staff App submits attendance.
+- School OS reads attendance.
+- Parent App reads linked-child attendance.
+- Student App reads own attendance.
+- Test real-time updates.
+
+## Phase 5 — Academic integration
+- Results.
+- Homework.
+- Homework submissions.
+- Academic history.
+
+## Phase 6 — School operations
+- Calendar.
+- Leave management.
+- Document requests.
+- Library.
+- Announcements.
+- Notifications.
+
+## Phase 7 — Payments and enrollment
+- Student annual enrollment.
+- Staff annual enrollment.
+- Payment verification.
+- Offline payment records.
+- Enrollment history.
+
+## Phase 8 — Support and platform monitoring
+- Support tickets.
+- Internal ticket management.
+- Super Admin analytics.
+- Platform activity monitoring.
+- Audit reporting.
+
+Do not attempt to implement all phases in a single change.
+
+Complete and test each phase before proceeding.
+
+---
+
+# 18. INSTRUCTIONS FOR EACH GOOGLE AI STUDIO PROJECT
+
+This master document is the shared architectural reference for all five OFFSLEEK applications.
+
+Each project must follow these rules:
+
+1. Recognize OFFSLEEK as one unified platform with five separate applications.
+2. Understand the responsibilities of all five applications.
+3. Preserve its own application identity and codebase.
+4. Use the shared Firebase backend.
+5. Follow common data models and entity identifiers.
+6. Use schoolId to isolate school records.
+7. Read and write only the records permitted to that application and authenticated user.
+8. Do not create duplicate independent operational datasets.
+9. Do not invent the implementation status of another application.
+10. Do not assume another portal has implemented a feature simply because it is described here.
+11. Do not modify another portal's codebase.
+12. Do not weaken Firebase security rules.
+13. Do not delete or overwrite existing data.
+14. Do not redesign existing interfaces unless specifically instructed.
+15. Report actual implementation and verification status.
+
+### Special instruction
+
+Before implementing any cross-portal feature, inspect the current project's existing models, services, Firebase setup and authentication.
+
+Identify what already exists and what is missing.
+
+Do not assume that the master architecture means every feature is already implemented.
+
+---
+
+# 19. TESTING AND ACCEPTANCE CRITERIA
+
+OFFSLEEK should not be declared fully integrated until these tests pass.
+
+### School identity
+- A school created in Internal Staff Dashboard appears in Super Admin Dashboard.
+- School OS identifies the same school.
+- All school records use the same school ID.
+
+### Student identity
+- A student created in School OS is accessible to authorized Staff App users.
+- Parent App can access the student only through an explicit parent-student link.
+- Student App can access the student's own permitted information.
+
+### Attendance
+- Attendance submitted in Staff App appears in School OS.
+- Parent App displays the linked child's attendance.
+- Student App displays the student's attendance.
+- All portals reference the same attendance record.
+- Changes and corrections follow the audit process.
+
+### Data isolation
+- School A cannot read School B's records.
+- Parent A cannot read Parent B's child records.
+- Student A cannot read Student B's records.
+- Teacher A cannot access unassigned classes.
+- Internal employees cannot exceed their assigned permissions.
+
+### Reliability
+- Data survives page refresh.
+- Duplicate records are not created.
+- Real-time listeners work where implemented.
+- Offline or network errors are handled.
+- Security rules prevent unauthorized reads and writes.
+- Test data does not contaminate production data.
+
+---
+
+# 20. FINAL ARCHITECTURAL DECLARATION
+
+OFFSLEEK is one unified, multi-tenant school-management platform delivered through five separate applications.
+
+The five applications are:
+
+1. Super Admin Dashboard.
+2. Super Admin Staff Dashboard.
+3. School OS.
+4. Staff Application.
+5. Parent & Student Application.
+
+They must operate on a shared backend and follow common data, identity, security and integration standards.
+
+The backend is the source of truth.
+
+Each application is responsible for its designated workflows and user experience.
+
+All cross-portal data sharing must be based on stable IDs, authenticated identities, school-level isolation and backend-enforced permissions.
+
+No application may independently create conflicting copies of shared operational records.
+
+**The ultimate goal is to make OFFSLEEK function as one connected ecosystem, not five disconnected applications.**
+
+END OF MASTER SYSTEM ARCHITECTURE — VERSION 1.0

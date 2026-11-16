@@ -21,6 +21,8 @@ import { getSavedMarksRecords } from './services/marksService';
 import { formatISTTime12h, useISTCurrentDate } from './utils/dateTimeUtils';
 import StaffBottomNav from './components/StaffBottomNav';
 import StaffStatusBar from './components/StaffStatusBar';
+import StaffUpcomingEventsSection from './components/StaffUpcomingEventsSection';
+import { CalendarEventDetail } from './services/calendarService';
 import { getAssetUrl } from './utils/assetUtils';
 
 interface StaffDashboardProps {
@@ -35,6 +37,8 @@ interface StaffDashboardProps {
   onOpenMyDocuments?: () => void;
   onOpenMyAttendance?: () => void;
   onLogHomework?: () => void;
+  onOpenSchoolCalendar?: () => void;
+  onSelectCalendarEvent?: (event: CalendarEventDetail) => void;
 }
 
 // Scheduled periods for Ms. Priya Sharma
@@ -60,6 +64,8 @@ export default function StaffDashboard({
   onOpenMyDocuments,
   onOpenMyAttendance,
   onLogHomework,
+  onOpenSchoolCalendar,
+  onSelectCalendarEvent,
 }: StaffDashboardProps) {
   const [activeTab, setActiveTab] = useState<'Home' | 'Attendance' | 'Announcements' | 'Profile'>('Home');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -355,7 +361,10 @@ export default function StaffDashboard({
             {/* 5. Calendar */}
             <button
               type="button"
-              onClick={() => showToast('Action: School Calendar')}
+              onClick={() => {
+                if (onOpenSchoolCalendar) onOpenSchoolCalendar();
+                else showToast('Action: School Calendar');
+              }}
               className="shrink-0 flex-1 min-w-[92px] sm:min-w-[98px] bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-2xl py-2.5 px-3 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] active:scale-[0.98] min-h-[74px]"
             >
               <div className="w-7 h-7 flex items-center justify-center text-neutral-900 mb-1.5 shrink-0">
@@ -566,6 +575,20 @@ export default function StaffDashboard({
             </div>
           </div>
         </div>
+
+        {/* G. Upcoming Events Section (Immediately After Recent Activities) */}
+        <StaffUpcomingEventsSection
+          onViewAll={() => {
+            if (onOpenSchoolCalendar) onOpenSchoolCalendar();
+            else showToast('Action: School Calendar');
+          }}
+          onSelectEvent={(event) => {
+            if (onSelectCalendarEvent) onSelectCalendarEvent(event);
+            else if (onOpenSchoolCalendar) onOpenSchoolCalendar();
+            else showToast(`Opening ${event.title}`);
+          }}
+          isOverlayOpen={Boolean(toastMessage)}
+        />
 
       </div>
 

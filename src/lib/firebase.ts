@@ -6,6 +6,7 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
+import { getStorage, FirebaseStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: "AIzaSyA6zoCd_YOePbKUF0YQc4HHSx68_0dKtXE",
@@ -24,3 +25,6 @@ export const auth: Auth = getAuth(app);
 
 // Default Firestore database instance in asia-south1 (Mumbai)
 export const db: Firestore = getFirestore(app);
+
+// Firebase Storage instance
+export const storage: FirebaseStorage = getStorage(app);

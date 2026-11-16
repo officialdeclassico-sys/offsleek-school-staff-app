@@ -3,11 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   ChevronDown,
   ChevronRight,
-  Download,
   Megaphone,
   Trophy,
   FileText,
@@ -20,6 +19,10 @@ import {
   Plus,
   Check,
   Filter,
+  CheckCircle2,
+  AlertCircle,
+  Upload,
+  Loader2,
 } from 'lucide-react';
 import {
   Announcement,
@@ -34,6 +37,12 @@ import {
 } from './services/announcementsService';
 import AnnouncementDetailModal from './AnnouncementDetailModal';
 import AnnouncementPdfModal from './AnnouncementPdfModal';
+import AnnouncementAttachmentRow from './components/AnnouncementAttachmentRow';
+import {
+  downloadAnnouncementAttachment,
+  getAttachmentBadgeLabel,
+  uploadAnnouncementAttachment,
+} from './utils/announcementAttachmentUtils';
 import StaffBottomNav from './components/StaffBottomNav';
 import StaffStatusBar from './components/StaffStatusBar';
 import { formatISTDateMedium } from './utils/dateTimeUtils';
@@ -78,13 +87,66 @@ export default function AnnouncementsScreen({
   const [activePdfAttachment, setActivePdfAttachment] = useState<{
     attachment: AnnouncementAttachment;
     title: string;
+    triggerEl?: HTMLElement | null;
   } | null>(null);
 
   // Create Announcement Modal for Staff (RBAC)
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [pendingAnnouncementId, setPendingAnnouncementId] = useState<string>(() => `ann-${Date.now()}`);
   const [newTitle, setNewTitle] = useState('');
   const [newCategory, setNewCategory] = useState<'Important' | 'Academic' | 'Events' | 'Holidays' | 'General'>('General');
   const [newContent, setNewContent] = useState('');
+  const [uploadedAttachment, setUploadedAttachment] = useState<AnnouncementAttachment | null>(null);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+  const [attachmentUploadError, setAttachmentUploadError] = useState<string | null>(null);
+  const attachmentInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Attachment download & toast feedback state
+  const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
+  const [downloadToast, setDownloadToast] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
+  const downloadToastTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (downloadToastTimerRef.current !== null) {
+        window.clearTimeout(downloadToastTimerRef.current);
+      }
+    };
+  }, []);
+
+  const showDownloadToast = (type: 'success' | 'error', message: string) => {
+    if (downloadToastTimerRef.current !== null) {
+      window.clearTimeout(downloadToastTimerRef.current);
+    }
+    setDownloadToast({ type, message });
+    downloadToastTimerRef.current = window.setTimeout(() => {
+      setDownloadToast(null);
+      downloadToastTimerRef.current = null;
+    }, 2800);
+  };
+
+  const handleDownloadAttachment = async (
+    attachment: AnnouncementAttachment,
+    key: string
+  ) => {
+    if (downloadingKey !== null) return;
+    setDownloadingKey(key);
+    try {
+      const filename = await downloadAnnouncementAttachment(attachment);
+      showDownloadToast('success', filename);
+    } catch (err) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : `Failed to download "${attachment.name}".`;
+      showDownloadToast('error', msg);
+    } finally {
+      setDownloadingKey(null);
+    }
+  };
 
   // Toast feedback
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -105,20 +167,88 @@ export default function AnnouncementsScreen({
     showToast(`Switched view to ${profile.name} (${profile.subtext})`);
   };
 
+  const openCreateModal = () => {
+    setPendingAnnouncementId(`ann-${Date.now()}`);
+    setNewTitle('');
+    setNewCategory('General');
+    setNewContent('');
+    setUploadedAttachment(null);
+    setAttachmentUploadError(null);
+    setIsUploadingAttachment(false);
+    if (attachmentInputRef.current) {
+      attachmentInputRef.current.value = '';
+    }
+    setShowCreateModal(true);
+  };
+
+  const closeCreateModal = () => {
+    setShowCreateModal(false);
+    setAttachmentUploadError(null);
+    setIsUploadingAttachment(false);
+    if (attachmentInputRef.current) {
+      attachmentInputRef.current.value = '';
+    }
+  };
+
+  const handleAttachmentFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setAttachmentUploadError(null);
+    setIsUploadingAttachment(true);
+    try {
+      const uploaded = await uploadAnnouncementAttachment(
+        file,
+        currentProfile.schoolId,
+        pendingAnnouncementId
+      );
+      setUploadedAttachment(uploaded);
+    } catch (err) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : `Failed to attach "${file.name}".`;
+      setAttachmentUploadError(msg);
+      setUploadedAttachment(null);
+    } finally {
+      setIsUploadingAttachment(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleRemoveUploadedAttachment = () => {
+    setUploadedAttachment(null);
+    setAttachmentUploadError(null);
+    if (attachmentInputRef.current) {
+      attachmentInputRef.current.value = '';
+    }
+  };
+
   // Handle Staff create announcement
   const handleCreateAnnouncementSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isUploadingAttachment) {
+      showToast('Please wait for the attachment upload to finish');
+      return;
+    }
     if (!newTitle.trim() || !newContent.trim()) {
       showToast('Please provide a title and announcement content');
       return;
     }
 
+    const trimmedContent = newContent.trim();
+    const previewText =
+      trimmedContent.length > 110
+        ? trimmedContent.slice(0, 110) + '...'
+        : trimmedContent;
+
     const created = addAnnouncement({
+      id: pendingAnnouncementId,
       title: newTitle.trim(),
       category: newCategory,
       dateStr: formatISTDateMedium(),
-      preview: newContent.trim().slice(0, 110) + '...',
-      fullContent: newContent.trim(),
+      preview: previewText,
+      fullContent: trimmedContent,
       publisher: {
         name: currentProfile.name,
         role: currentProfile.subtext,
@@ -128,10 +258,12 @@ export default function AnnouncementsScreen({
       targetGrades: ['All'],
       targetRoles: ['STAFF', 'PARENT', 'STUDENT'],
       isImportant: newCategory === 'Important',
+      ...(uploadedAttachment ? { attachment: uploadedAttachment } : {}),
     });
 
     setAllAnnouncements((prev) => [created, ...prev]);
-    setShowCreateModal(false);
+    closeCreateModal();
+    setUploadedAttachment(null);
     setNewTitle('');
     setNewContent('');
     showToast('Announcement published successfully');
@@ -179,6 +311,28 @@ export default function AnnouncementsScreen({
   return (
     <div className="relative w-full h-full bg-white flex flex-col justify-between overflow-hidden select-none text-neutral-900 font-sans">
       
+      {/* Download Success / Error Toast (Student Portal Spec) */}
+      {downloadToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={`absolute top-4 left-1/2 -translate-x-1/2 z-[70] text-white text-xs px-4 py-2 rounded-full shadow-lg flex items-center gap-2 max-w-[calc(100%-24px)] ${
+            downloadToast.type === 'success' ? 'bg-black' : 'bg-rose-600'
+          }`}
+        >
+          {downloadToast.type === 'success' ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          ) : (
+            <AlertCircle className="w-4 h-4 text-white shrink-0" />
+          )}
+          <span className="truncate font-medium">
+            {downloadToast.type === 'success'
+              ? `Downloaded ${downloadToast.message}`
+              : downloadToast.message}
+          </span>
+        </div>
+      )}
+
       {/* Toast Notification */}
       {toastMessage && (
         <div className="absolute top-14 left-4 right-4 z-50 bg-neutral-900 text-white text-xs px-3.5 py-2.5 rounded-xl shadow-lg flex items-center justify-between animate-in fade-in slide-in-from-top-2 duration-200">
@@ -195,7 +349,13 @@ export default function AnnouncementsScreen({
       <StaffStatusBar />
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-3.5 sm:px-4.5 pt-1.5 pb-4 space-y-3.5">
+      <div
+        className={`flex-1 overflow-x-hidden no-scrollbar px-3.5 sm:px-4.5 pt-1.5 pb-4 space-y-3.5 ${
+          activePdfAttachment || selectedAnnouncement || showCreateModal
+            ? 'overflow-y-hidden'
+            : 'overflow-y-auto'
+        }`}
+      >
         
         {/* Page Title & Subtitle + Search Icon */}
         <div className="flex items-center justify-between pt-0.5">
@@ -226,7 +386,7 @@ export default function AnnouncementsScreen({
             {isStaff && (
               <button
                 type="button"
-                onClick={() => setShowCreateModal(true)}
+                onClick={openCreateModal}
                 className="hidden min-[360px]:flex items-center gap-1 bg-black hover:bg-neutral-800 text-white text-[11px] font-medium py-1.5 px-2.5 rounded-xl transition cursor-pointer shadow-2xs"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -358,54 +518,26 @@ export default function AnnouncementsScreen({
                         {ann.preview}
                       </p>
 
-                      {/* Attachment Box if exists (Matching Reference Screenshot) */}
-                      {ann.attachment && (
-                        <div
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActivePdfAttachment({
-                              attachment: ann.attachment!,
-                              title: ann.title,
-                            });
-                          }}
-                          className="bg-[#f8f9fa] border border-[#eef0f3] rounded-xl p-2 sm:p-2.5 flex items-center justify-between mt-2.5 hover:bg-neutral-100 transition group/att"
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            {/* Red PDF Icon badge */}
-                            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-[#e53935] rounded-lg flex flex-col items-center justify-center text-white shrink-0 shadow-2xs">
-                              <span className="text-[8.5px] font-black tracking-tight leading-none">
-                                PDF
-                              </span>
-                            </div>
-                            <div className="min-w-0">
-                              <div className="text-[11.5px] sm:text-[12px] font-medium text-neutral-800 truncate">
-                                {ann.attachment.name}
-                              </div>
-                              <div className="text-[9.5px] sm:text-[10px] text-neutral-400">
-                                {ann.attachment.size}
-                              </div>
-                            </div>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setActivePdfAttachment({
-                                attachment: ann.attachment!,
-                                title: ann.title,
-                              });
-                            }}
-                            className="p-1.5 text-neutral-500 group-hover/att:text-neutral-900 hover:bg-white rounded-lg transition shrink-0 cursor-pointer"
-                            title="Download / View PDF"
-                          >
-                            <Download className="w-4 h-4" />
-                          </button>
-                        </div>
-                      )}
-
                     </div>
                   </div>
+
+                  {/* Attachment Row (Full-width, left-aligned with card content) */}
+                  {ann.attachment && (
+                    <AnnouncementAttachmentRow
+                      attachment={ann.attachment}
+                      isDownloading={downloadingKey === ann.id}
+                      onPreview={(triggerEl) =>
+                        setActivePdfAttachment({
+                          attachment: ann.attachment!,
+                          title: ann.title,
+                          triggerEl,
+                        })
+                      }
+                      onDownload={() =>
+                        handleDownloadAttachment(ann.attachment!, ann.id)
+                      }
+                    />
+                  )}
 
                 </div>
               );
@@ -448,87 +580,175 @@ export default function AnnouncementsScreen({
           attachment={activePdfAttachment.attachment}
           announcementTitle={activePdfAttachment.title}
           onClose={() => setActivePdfAttachment(null)}
+          onDownload={(att) => handleDownloadAttachment(att, 'modal')}
+          isDownloading={downloadingKey !== null}
+          returnFocusTo={activePdfAttachment.triggerEl}
         />
       )}
 
       {/* Modal: Staff Create Announcement (Authorized staff only) */}
       {showCreateModal && isStaff && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-md rounded-2xl sm:rounded-3xl shadow-2xl p-5 border border-neutral-200">
-            <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
+        <div
+          onClick={closeCreateModal}
+          className="absolute inset-0 w-full h-full z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center overscroll-contain animate-in fade-in duration-200"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+            className="announcement-detail-modal bg-white rounded-3xl shadow-2xl border border-neutral-200 flex flex-col overflow-hidden"
+          >
+            <div className="shrink-0 flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-neutral-100">
               <h3 className="text-[15px] font-bold text-neutral-900">
                 Create School Announcement
               </h3>
               <button
                 type="button"
-                onClick={() => setShowCreateModal(false)}
-                className="text-neutral-400 hover:text-neutral-900 p-1"
+                onClick={closeCreateModal}
+                aria-label="Close create announcement modal"
+                className="text-neutral-400 hover:text-neutral-900 p-1 rounded-lg hover:bg-neutral-100 transition cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateAnnouncementSubmit} className="mt-3.5 space-y-3">
-              <div>
-                <label className="block text-[11px] font-semibold text-neutral-700 uppercase tracking-wider mb-1">
-                  Announcement Title
-                </label>
-                <input
-                  type="text"
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="e.g. Science Exhibition Registration Open"
-                  className="w-full bg-[#f8f9fa] border border-neutral-200 rounded-xl px-3 py-2 text-[12.5px] text-neutral-900 focus:outline-none focus:border-black"
-                  required
-                />
+            <form
+              onSubmit={handleCreateAnnouncementSubmit}
+              className="flex-1 min-h-0 flex flex-col overflow-hidden"
+            >
+              <div className="flex-1 min-h-0 px-4 sm:px-5 py-3.5 space-y-3 overflow-y-auto overflow-x-hidden overscroll-y-contain announcement-modal-scroll">
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-700 uppercase tracking-wider mb-1">
+                    Announcement Title
+                  </label>
+                  <input
+                    type="text"
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                    placeholder="e.g. Science Exhibition Registration Open"
+                    className="w-full bg-[#f8f9fa] border border-neutral-200 rounded-xl px-3 py-2 text-[12.5px] text-neutral-900 focus:outline-none focus:border-black"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-700 uppercase tracking-wider mb-1">
+                    Category
+                  </label>
+                  <select
+                    value={newCategory}
+                    onChange={(e) =>
+                      setNewCategory(
+                        e.target.value as 'Important' | 'Academic' | 'Events' | 'Holidays' | 'General'
+                      )
+                    }
+                    className="w-full bg-[#f8f9fa] border border-neutral-200 rounded-xl px-3 py-2 text-[12.5px] text-neutral-900 focus:outline-none focus:border-black"
+                  >
+                    <option value="General">General</option>
+                    <option value="Important">Important</option>
+                    <option value="Academic">Academic</option>
+                    <option value="Events">Events</option>
+                    <option value="Holidays">Holidays</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-700 uppercase tracking-wider mb-1">
+                    Message Content
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={newContent}
+                    onChange={(e) => setNewContent(e.target.value)}
+                    placeholder="Enter complete circular or notice description for parents and students..."
+                    className="w-full bg-[#f8f9fa] border border-neutral-200 rounded-xl px-3 py-2 text-[12.5px] text-neutral-900 focus:outline-none focus:border-black"
+                    required
+                  />
+                </div>
+
+                {/* Attachment File Upload */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-700 uppercase tracking-wider mb-1">
+                    Attachment (Optional)
+                  </label>
+                  <input
+                    ref={attachmentInputRef}
+                    type="file"
+                    accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,application/pdf,image/png,image/jpeg,image/webp,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    onChange={handleAttachmentFileChange}
+                    className="hidden"
+                  />
+
+                  {isUploadingAttachment ? (
+                    <div className="w-full bg-neutral-50 border border-neutral-200 rounded-xl p-3 flex items-center gap-2.5 text-neutral-600">
+                      <Loader2 className="w-4 h-4 animate-spin text-black shrink-0" />
+                      <span className="text-xs font-medium">Uploading attachment...</span>
+                    </div>
+                  ) : uploadedAttachment ? (
+                    <div className="w-full bg-neutral-100/80 border border-neutral-200/80 rounded-xl p-2.5 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-md tracking-wider shrink-0">
+                          {getAttachmentBadgeLabel(uploadedAttachment)}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-semibold text-black truncate">
+                            {uploadedAttachment.name}
+                          </div>
+                          <div className="text-[10px] text-neutral-500 flex items-center gap-1.5">
+                            <span>{uploadedAttachment.size}</span>
+                            <span>•</span>
+                            <span>
+                              {uploadedAttachment.storageProvider === 'firebase-storage'
+                                ? 'Firebase Storage'
+                                : 'Saved locally'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRemoveUploadedAttachment}
+                        aria-label={`Remove ${uploadedAttachment.name}`}
+                        className="p-1.5 rounded-lg text-neutral-500 hover:text-rose-600 hover:bg-neutral-200/70 transition cursor-pointer shrink-0"
+                        title="Remove attachment"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => attachmentInputRef.current?.click()}
+                      className="w-full bg-[#f8f9fa] hover:bg-neutral-100 border border-dashed border-neutral-300 rounded-xl px-3 py-3 flex items-center justify-center gap-2 text-neutral-600 hover:text-black transition cursor-pointer"
+                    >
+                      <Upload className="w-4 h-4 shrink-0" />
+                      <span className="text-[11.5px] font-medium">
+                        Attach PDF, Image, or Document (Max 10 MB)
+                      </span>
+                    </button>
+                  )}
+
+                  {attachmentUploadError && (
+                    <div className="mt-1.5 flex items-start gap-1.5 text-[11px] text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-2">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      <span>{attachmentUploadError}</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div>
-                <label className="block text-[11px] font-semibold text-neutral-700 uppercase tracking-wider mb-1">
-                  Category
-                </label>
-                <select
-                  value={newCategory}
-                  onChange={(e) =>
-                    setNewCategory(
-                      e.target.value as 'Important' | 'Academic' | 'Events' | 'Holidays' | 'General'
-                    )
-                  }
-                  className="w-full bg-[#f8f9fa] border border-neutral-200 rounded-xl px-3 py-2 text-[12.5px] text-neutral-900 focus:outline-none focus:border-black"
-                >
-                  <option value="General">General</option>
-                  <option value="Important">Important</option>
-                  <option value="Academic">Academic</option>
-                  <option value="Events">Events</option>
-                  <option value="Holidays">Holidays</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-neutral-700 uppercase tracking-wider mb-1">
-                  Message Content
-                </label>
-                <textarea
-                  rows={4}
-                  value={newContent}
-                  onChange={(e) => setNewContent(e.target.value)}
-                  placeholder="Enter complete circular or notice description for parents and students..."
-                  className="w-full bg-[#f8f9fa] border border-neutral-200 rounded-xl px-3 py-2 text-[12.5px] text-neutral-900 focus:outline-none focus:border-black"
-                  required
-                />
-              </div>
-
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-neutral-100">
+              <div className="shrink-0 px-4 sm:px-5 py-3 bg-[#fafbfc] flex items-center justify-end gap-2 border-t border-neutral-100">
                 <button
                   type="button"
-                  onClick={() => setShowCreateModal(false)}
+                  onClick={closeCreateModal}
                   className="px-4 py-2 text-[12px] font-medium text-neutral-600 hover:text-neutral-900 rounded-xl hover:bg-neutral-100 transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-[12.5px] font-medium text-white bg-black hover:bg-neutral-800 rounded-xl transition cursor-pointer shadow-xs"
+                  disabled={isUploadingAttachment}
+                  className="px-5 py-2 text-[12.5px] font-medium text-white bg-black hover:bg-neutral-800 rounded-xl transition cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Publish Notice
                 </button>

@@ -10,9 +10,15 @@ export type AnnouncementCategory = 'All' | 'Academic' | 'Events' | 'Holidays' | 
 export interface AnnouncementAttachment {
   name: string;
   size: string;
-  type: 'pdf';
+  sizeBytes?: number;
+  type: 'pdf' | 'image' | 'file';
+  contentType?: string;
   pages?: number;
   downloadUrl?: string;
+  storagePath?: string;
+  localFileId?: string;
+  storageProvider?: 'firebase-storage' | 'local-indexeddb';
+  uploadedAt?: string;
   previewTitle?: string;
   previewSummary?: string;
 }
@@ -314,7 +320,9 @@ export function filterAnnouncements(
 /**
  * Adds a new announcement (Staff authorized only)
  */
-export function addAnnouncement(newAnn: Omit<Announcement, 'id' | 'timestamp'>): Announcement {
+export function addAnnouncement(
+  newAnn: Omit<Announcement, 'id' | 'timestamp'> & { id?: string }
+): Announcement {
   const current = getStoredAnnouncements();
   const now = getNow();
   const nowIso = now.toISOString();
@@ -326,7 +334,7 @@ export function addAnnouncement(newAnn: Omit<Announcement, 'id' | 'timestamp'>):
   const created: Announcement = {
     ...newAnn,
     dateStr: resolvedDateStr,
-    id: `ann-${now.getTime()}`,
+    id: newAnn.id || `ann-${now.getTime()}`,
     timestamp: nowIso,
     createdAt: nowIso,
     updatedAt: nowIso,

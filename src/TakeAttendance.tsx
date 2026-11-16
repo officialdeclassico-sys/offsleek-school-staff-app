@@ -6,12 +6,13 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   ChevronLeft,
-  Bell,
   ChevronDown,
   Calendar,
   Users,
   Search,
   Check,
+  CheckCircle2,
+  XCircle,
   X,
   AlertCircle,
   Clock,
@@ -19,6 +20,7 @@ import {
 import {
   Student,
   AttendanceRecord,
+  AttendanceStatusCode,
   saveOrUpdateAttendance,
   findAttendanceRecord,
   ASSIGNED_CLASSES,
@@ -27,6 +29,56 @@ import {
 import StaffStatusBar from './components/StaffStatusBar';
 import { useISTCurrentDate } from './utils/dateTimeUtils';
 import { getAssetUrl } from './utils/assetUtils';
+
+interface StatusOptionConfig {
+  code: AttendanceStatusCode;
+  label: string;
+  activeClass: string;
+  legendBadgeClass: string;
+  isWide?: boolean;
+}
+
+const ATTENDANCE_STATUS_OPTIONS: StatusOptionConfig[] = [
+  {
+    code: 'P',
+    label: 'Present',
+    activeClass: 'bg-[#15803d] border border-[#15803d]',
+    legendBadgeClass: 'bg-[#15803d]',
+  },
+  {
+    code: 'A',
+    label: 'Absent',
+    activeClass: 'bg-[#dc2626] border border-[#dc2626]',
+    legendBadgeClass: 'bg-[#dc2626]',
+  },
+  {
+    code: 'L',
+    label: 'Leave',
+    activeClass: 'bg-[#f59e0b] border border-[#f59e0b]',
+    legendBadgeClass: 'bg-[#f59e0b]',
+  },
+  {
+    code: 'LT',
+    label: 'Late',
+    activeClass: 'bg-[#ea580c] border border-[#ea580c]',
+    legendBadgeClass: 'bg-[#ea580c]',
+    isWide: true,
+  },
+  {
+    code: 'H',
+    label: 'Half Day',
+    activeClass: 'bg-[#7c3aed] border border-[#7c3aed]',
+    legendBadgeClass: 'bg-[#7c3aed]',
+  },
+];
+
+const STATUS_LABEL_MAP: Record<AttendanceStatusCode, string> = {
+  P: 'Present',
+  A: 'Absent',
+  L: 'Leave',
+  LT: 'Late',
+  H: 'Half Day',
+};
 
 interface TakeAttendanceProps {
   initialRecord?: AttendanceRecord;
@@ -177,8 +229,7 @@ export default function TakeAttendance({
     setTimeout(() => setToastMessage(null), 2500);
   };
 
-  // Real-time calculated attendance counts matching reference exactly
-  const totalStudents = students.length;
+  // Real-time calculated attendance counts across all five statuses
   const presentCount = useMemo(
     () => students.filter((s) => s.status === 'P').length,
     [students]
@@ -187,14 +238,21 @@ export default function TakeAttendance({
     () => students.filter((s) => s.status === 'A').length,
     [students]
   );
-  // Not Marked includes students who are on Leave or yet to be marked
-  const notMarkedCount = useMemo(
-    () => students.filter((s) => s.status === 'L' || s.status === null).length,
+  const leaveCount = useMemo(
+    () => students.filter((s) => s.status === 'L').length,
+    [students]
+  );
+  const lateCount = useMemo(
+    () => students.filter((s) => s.status === 'LT').length,
+    [students]
+  );
+  const halfDayCount = useMemo(
+    () => students.filter((s) => s.status === 'H').length,
     [students]
   );
 
-  // Status toggle handler for P, A, L
-  const handleStatusChange = (studentId: string, status: 'P' | 'A' | 'L') => {
+  // Status toggle handler for P, A, L, LT, H
+  const handleStatusChange = (studentId: string, status: AttendanceStatusCode) => {
     setValidationError(null);
     setStudents((prev) =>
       prev.map((s) => (s.id === studentId ? { ...s, status } : s))
@@ -247,7 +305,7 @@ export default function TakeAttendance({
   };
 
   // Bulk action for selected students
-  const handleBulkStatusChange = (status: 'P' | 'A' | 'L') => {
+  const handleBulkStatusChange = (status: AttendanceStatusCode) => {
     setValidationError(null);
     setStudents((prev) =>
       prev.map((s) => (selectedStudentIds.has(s.id) ? { ...s, status } : s))
@@ -255,7 +313,7 @@ export default function TakeAttendance({
     showToast(
       `Marked ${selectedStudentIds.size} student${
         selectedStudentIds.size > 1 ? 's' : ''
-      } as ${status === 'P' ? 'Present' : status === 'A' ? 'Absent' : 'Leave'}`
+      } as ${STATUS_LABEL_MAP[status]}`
     );
     setSelectedStudentIds(new Set());
   };
@@ -325,7 +383,6 @@ export default function TakeAttendance({
       {/* Main Scrollable Content */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-3.5 sm:px-4.5 pt-2 pb-10 space-y-3">
         
-        {/* Page Heading & Subtitle with Back Button (Sticky on scroll) */}
         {/* Page Heading & Subtitle with Small Back Chevron (Sticky on scroll) */}
         <div className="sticky top-0 bg-white z-20 pt-1 pb-2 border-b border-[#f4f5f7] flex items-start gap-1.5 -mx-3.5 sm:-mx-4.5 px-3.5 sm:px-4.5">
           <button
@@ -344,6 +401,35 @@ export default function TakeAttendance({
             <p className="text-[12px] sm:text-[12.5px] text-[#717684] mt-0.5 font-normal">
               Mark your class attendance for today
             </p>
+          </div>
+        </div>
+
+        {/* Compact Horizontal Status Legend */}
+        <div
+          aria-label="Attendance status legend"
+          className="bg-[#f4f4fa] border border-[#e9eaf4] rounded-xl px-2 py-1.5"
+        >
+          <div className="flex flex-wrap items-center justify-between sm:justify-center gap-x-1 sm:gap-x-1.5 gap-y-1">
+            {ATTENDANCE_STATUS_OPTIONS.map((opt, idx) => (
+              <React.Fragment key={opt.code}>
+                <div className="inline-flex items-center gap-1 whitespace-nowrap">
+                  <span
+                    className={`inline-flex items-center justify-center h-[16px] min-w-[16px] px-1 rounded-[4px] text-[8.5px] font-bold text-white leading-none ${opt.legendBadgeClass}`}
+                  >
+                    {opt.code}
+                  </span>
+                  <span className="text-[9.5px] sm:text-[10px] font-medium text-neutral-800">
+                    {opt.label}
+                  </span>
+                </div>
+                {idx < ATTENDANCE_STATUS_OPTIONS.length - 1 && (
+                  <span
+                    aria-hidden="true"
+                    className="h-3 w-px bg-neutral-300/80 shrink-0"
+                  />
+                )}
+              </React.Fragment>
+            ))}
           </div>
         </div>
 
@@ -459,45 +545,74 @@ export default function TakeAttendance({
 
         </div>
 
-        {/* 4 Attendance Statistics Cards */}
-        <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
-          {/* Card 1: Total */}
-          <div className="bg-[#f8f9fa] border border-[#eef0f3] rounded-2xl p-2.5 text-center flex flex-col items-center justify-center">
-            <div className="text-[19px] sm:text-[20px] font-bold text-neutral-950 leading-none">
-              {totalStudents}
-            </div>
-            <div className="text-[10.5px] text-[#717684] font-normal mt-1 leading-tight">
-              Total
-            </div>
-          </div>
-
-          {/* Card 2: Present */}
-          <div className="bg-[#f8f9fa] border border-[#eef0f3] rounded-2xl p-2.5 text-center flex flex-col items-center justify-center">
-            <div className="text-[19px] sm:text-[20px] font-bold text-neutral-950 leading-none">
+        {/* 5 Attendance Summary Cards (Present, Absent, Leave, Late, Half Day) */}
+        <div className="grid grid-cols-5 gap-1.5">
+          {/* Card 1: Present */}
+          <div className="bg-[#effaf3] border border-[#c8ecd5] rounded-2xl px-1 py-2 text-center flex flex-col items-center justify-center">
+            <CheckCircle2 className="w-4 h-4 text-[#15803d] stroke-[2]" />
+            <div className="text-[17px] sm:text-[18px] font-bold text-neutral-950 leading-none tabular-nums mt-1">
               {presentCount}
             </div>
-            <div className="text-[10.5px] text-[#717684] font-normal mt-1 leading-tight">
+            <div className="text-[9.5px] sm:text-[10px] text-[#15803d] font-medium mt-1 leading-tight whitespace-nowrap">
               Present
             </div>
           </div>
 
-          {/* Card 3: Absent */}
-          <div className="bg-[#f8f9fa] border border-[#eef0f3] rounded-2xl p-2.5 text-center flex flex-col items-center justify-center">
-            <div className="text-[19px] sm:text-[20px] font-bold text-neutral-950 leading-none">
+          {/* Card 2: Absent */}
+          <div className="bg-[#fff1f2] border border-[#fecdd3] rounded-2xl px-1 py-2 text-center flex flex-col items-center justify-center">
+            <XCircle className="w-4 h-4 text-[#dc2626] stroke-[2]" />
+            <div className="text-[17px] sm:text-[18px] font-bold text-neutral-950 leading-none tabular-nums mt-1">
               {absentCount}
             </div>
-            <div className="text-[10.5px] text-[#717684] font-normal mt-1 leading-tight">
+            <div className="text-[9.5px] sm:text-[10px] text-[#dc2626] font-medium mt-1 leading-tight whitespace-nowrap">
               Absent
             </div>
           </div>
 
-          {/* Card 4: Not Marked */}
-          <div className="bg-[#f8f9fa] border border-[#eef0f3] rounded-2xl p-2.5 text-center flex flex-col items-center justify-center">
-            <div className="text-[19px] sm:text-[20px] font-bold text-neutral-950 leading-none">
-              {notMarkedCount}
+          {/* Card 3: Leave */}
+          <div className="bg-[#fefce8] border border-[#fde68a] rounded-2xl px-1 py-2 text-center flex flex-col items-center justify-center">
+            <Calendar className="w-4 h-4 text-[#d97706] stroke-[2]" />
+            <div className="text-[17px] sm:text-[18px] font-bold text-neutral-950 leading-none tabular-nums mt-1">
+              {leaveCount}
             </div>
-            <div className="text-[10.5px] text-[#717684] font-normal mt-1 leading-tight">
-              Not Marked
+            <div className="text-[9.5px] sm:text-[10px] text-[#b45309] font-medium mt-1 leading-tight whitespace-nowrap">
+              Leave
+            </div>
+          </div>
+
+          {/* Card 4: Late */}
+          <div className="bg-[#fff7ed] border border-[#fed7aa] rounded-2xl px-1 py-2 text-center flex flex-col items-center justify-center">
+            <Clock className="w-4 h-4 text-[#ea580c] stroke-[2]" />
+            <div className="text-[17px] sm:text-[18px] font-bold text-neutral-950 leading-none tabular-nums mt-1">
+              {lateCount}
+            </div>
+            <div className="text-[9.5px] sm:text-[10px] text-[#c2410c] font-medium mt-1 leading-tight whitespace-nowrap">
+              Late
+            </div>
+          </div>
+
+          {/* Card 5: Half Day */}
+          <div className="bg-[#f5f3ff] border border-[#ddd6fe] rounded-2xl px-1 py-2 text-center flex flex-col items-center justify-center">
+            <svg
+              viewBox="0 0 24 24"
+              className="w-4 h-4 text-[#7c3aed]"
+              aria-hidden="true"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="9"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+              <path d="M12 3a9 9 0 0 0 0 18V3z" fill="currentColor" />
+            </svg>
+            <div className="text-[17px] sm:text-[18px] font-bold text-neutral-950 leading-none tabular-nums mt-1">
+              {halfDayCount}
+            </div>
+            <div className="text-[9.5px] sm:text-[10px] text-[#6d28d9] font-medium mt-1 leading-tight whitespace-nowrap">
+              Half Day
             </div>
           </div>
         </div>
@@ -551,39 +666,26 @@ export default function TakeAttendance({
 
         {/* Bulk Action Pill Bar (When students are checked) */}
         {selectedStudentIds.size > 0 && (
-          <div className="bg-neutral-900 text-white rounded-xl px-3 py-2 text-xs flex items-center justify-between shadow-md animate-in fade-in duration-150">
-            <span className="font-semibold text-[11.5px]">
-              {selectedStudentIds.size} student{selectedStudentIds.size > 1 ? 's' : ''} selected
+          <div className="bg-neutral-900 text-white rounded-xl px-2.5 py-2 text-xs flex items-center justify-between gap-2 shadow-md animate-in fade-in duration-150">
+            <span className="font-semibold text-[11px] whitespace-nowrap">
+              {selectedStudentIds.size} selected
             </span>
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => handleBulkStatusChange('P')}
-                className="bg-white/20 hover:bg-white/30 text-white px-2 py-1 rounded-md text-[10.5px] font-bold cursor-pointer transition"
-                title="Mark selected Present"
-              >
-                Mark P
-              </button>
-              <button
-                type="button"
-                onClick={() => handleBulkStatusChange('A')}
-                className="bg-white/20 hover:bg-white/30 text-white px-2 py-1 rounded-md text-[10.5px] font-bold cursor-pointer transition"
-                title="Mark selected Absent"
-              >
-                Mark A
-              </button>
-              <button
-                type="button"
-                onClick={() => handleBulkStatusChange('L')}
-                className="bg-white/20 hover:bg-white/30 text-white px-2 py-1 rounded-md text-[10.5px] font-bold cursor-pointer transition"
-                title="Mark selected Leave"
-              >
-                Mark L
-              </button>
+            <div className="flex items-center gap-1 flex-nowrap">
+              {ATTENDANCE_STATUS_OPTIONS.map((opt) => (
+                <button
+                  key={opt.code}
+                  type="button"
+                  onClick={() => handleBulkStatusChange(opt.code)}
+                  className="bg-white/20 hover:bg-white/30 text-white px-1.5 py-1 rounded-md text-[10px] font-bold cursor-pointer transition whitespace-nowrap"
+                  title={`Mark selected ${opt.label}`}
+                >
+                  {opt.code}
+                </button>
+              ))}
               <button
                 type="button"
                 onClick={() => setSelectedStudentIds(new Set())}
-                className="text-neutral-400 hover:text-white ml-1 p-0.5 cursor-pointer"
+                className="text-neutral-400 hover:text-white ml-0.5 p-0.5 cursor-pointer"
                 title="Clear selection"
               >
                 <X className="w-3.5 h-3.5" />
@@ -593,12 +695,12 @@ export default function TakeAttendance({
         )}
 
         {/* Student Table Header */}
-        <div className="flex items-center justify-between px-1 pt-1 text-[11px] font-medium text-neutral-500 border-b border-[#f0f2f5] pb-2">
-          <div className="flex items-center gap-2.5 sm:gap-3">
-            <span className="w-16 shrink-0 whitespace-nowrap">Roll Number</span>
+        <div className="flex items-center justify-between gap-2 px-1 pt-0.5 text-[11px] font-medium text-neutral-500 border-b border-[#f0f2f5] pb-2">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <span className="w-9 text-center shrink-0 whitespace-nowrap">Roll No.</span>
             <span>Student Name</span>
           </div>
-          <span className="pr-8 sm:pr-9">Status</span>
+          <span className="w-[152px] sm:w-[162px] text-center shrink-0">Status</span>
         </div>
 
         {/* Student List Rows */}
@@ -614,73 +716,61 @@ export default function TakeAttendance({
               return (
                 <div
                   key={student.id}
-                  className={`flex items-center justify-between py-2 px-1 rounded-lg transition ${
+                  className={`flex items-center justify-between gap-2 py-2 px-1 rounded-lg transition ${
                     isChecked ? 'bg-neutral-50/90' : 'hover:bg-neutral-50/40'
                   }`}
                 >
                   {/* Left Column: Roll + Avatar + Student Name */}
-                  <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-2">
-                    <span className="text-[12px] font-medium text-[#6b7280] w-16 text-center shrink-0 whitespace-nowrap">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <span className="text-[12px] font-medium text-[#6b7280] w-9 text-center shrink-0 whitespace-nowrap tabular-nums">
                       {student.rollNo}
                     </span>
-                    
+
                     <img
                       src={getAssetUrl(student.avatar)}
                       alt={student.name}
-                      className="w-8 h-8 rounded-full object-cover shrink-0 border border-neutral-100"
+                      className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover shrink-0 border border-neutral-100"
                       onError={(e) => {
                         (e.target as HTMLElement).style.display = 'none';
                       }}
                     />
-                    
-                    <span className="text-[13px] font-semibold text-neutral-950 truncate flex-1 min-w-0">
+
+                    <span className="text-[12.5px] sm:text-[13px] font-semibold text-neutral-950 truncate flex-1 min-w-0">
                       {student.name}
                     </span>
                   </div>
 
-                  {/* Right Column: Status Radio Pills: P | A | L */}
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {/* Present (P) */}
-                    <button
-                      type="button"
-                      onClick={() => handleStatusChange(student.id, 'P')}
-                      className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold transition cursor-pointer ${
-                        student.status === 'P'
-                          ? 'bg-black text-white shadow-xs'
-                          : 'bg-white border border-[#e5e7eb] text-neutral-700 hover:bg-neutral-50'
-                      }`}
-                      title="Present"
-                    >
-                      P
-                    </button>
-
-                    {/* Absent (A) */}
-                    <button
-                      type="button"
-                      onClick={() => handleStatusChange(student.id, 'A')}
-                      className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold transition cursor-pointer ${
-                        student.status === 'A'
-                          ? 'bg-black text-white shadow-xs'
-                          : 'bg-white border border-[#e5e7eb] text-neutral-700 hover:bg-neutral-50'
-                      }`}
-                      title="Absent"
-                    >
-                      A
-                    </button>
-
-                    {/* On Leave (L) */}
-                    <button
-                      type="button"
-                      onClick={() => handleStatusChange(student.id, 'L')}
-                      className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold transition cursor-pointer ${
-                        student.status === 'L'
-                          ? 'bg-black text-white shadow-xs'
-                          : 'bg-white border border-[#e5e7eb] text-neutral-700 hover:bg-neutral-50'
-                      }`}
-                      title="On Leave"
-                    >
-                      L
-                    </button>
+                  {/* Right Column: Five Compact Status Buttons: P | A | L | LT | H */}
+                  <div
+                    role="radiogroup"
+                    aria-label={`Attendance status for ${student.name}`}
+                    className="flex items-center justify-end gap-1 shrink-0 flex-nowrap"
+                  >
+                    {ATTENDANCE_STATUS_OPTIONS.map((option) => {
+                      const isSelected = student.status === option.code;
+                      return (
+                        <button
+                          key={option.code}
+                          type="button"
+                          role="radio"
+                          aria-checked={isSelected}
+                          aria-label={`${student.name} - ${option.label}`}
+                          title={option.label}
+                          onClick={() => handleStatusChange(student.id, option.code)}
+                          className={`${
+                            option.isWide
+                              ? 'min-w-[32px] sm:min-w-[34px] h-[26px] sm:h-7 px-1.5'
+                              : 'w-[26px] h-[26px] sm:w-7 sm:h-7'
+                          } rounded-full flex items-center justify-center text-[10.5px] sm:text-[11px] font-bold leading-none whitespace-nowrap shrink-0 transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-1 ${
+                            isSelected
+                              ? `${option.activeClass} text-white shadow-xs`
+                              : 'bg-white border border-[#e2e5eb] text-neutral-800 hover:bg-neutral-50 hover:border-neutral-300'
+                          }`}
+                        >
+                          {option.code}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               );

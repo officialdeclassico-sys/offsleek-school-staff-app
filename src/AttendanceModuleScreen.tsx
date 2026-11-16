@@ -16,36 +16,80 @@ import {
   Clock,
   CheckCircle2,
   Users,
-  Edit3,
-  Send,
-  Home,
-  Megaphone,
-  FileText,
-  User,
   ArrowUpDown,
   X,
   Check,
   Info,
-  ShieldCheck,
 } from 'lucide-react';
 import {
+  AttendanceStatusCode,
+  DailyAttendanceStatus,
   StudentMonthlySummary,
   ClassMonthlySummary,
   getStudentMonthlySummaries,
   getStudentMonthlySummary,
   getClassMonthlySummary,
-  updateStudentDayAttendance,
-  publishStudentMonthlyAttendance,
   ASSIGNED_CLASSES,
   TiedInsightItem,
 } from './services/attendanceService';
+import {
+  buildDateKey,
+  getDaysInMonthUTC,
+  getMonthLeadingPaddingDaysUTC,
+} from './services/calendarService';
 import StaffBottomNav from './components/StaffBottomNav';
 import {
   useISTCurrentDate,
   parseMonthYearToYearMonth,
+  formatMonthKeyToMonthYear,
+  formatISTShortWeekdayDate,
+  parseDateKeySafe,
   getRecentAndSurroundingMonthYears,
 } from './utils/dateTimeUtils';
 import { getAssetUrl } from './utils/assetUtils';
+
+const CALENDAR_WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'] as const;
+
+const STUDENT_STATUS_META: Record<
+  AttendanceStatusCode,
+  {
+    label: string;
+    dotClass: string;
+    selectedDotClass: string;
+    pillClass: string;
+  }
+> = {
+  P: {
+    label: 'Present',
+    dotClass: 'bg-[#15803d]',
+    selectedDotClass: 'bg-[#34d399]',
+    pillClass: 'bg-[#effaf3] text-[#15803d] border border-[#bbf7d0]',
+  },
+  A: {
+    label: 'Absent',
+    dotClass: 'bg-[#dc2626]',
+    selectedDotClass: 'bg-[#f87171]',
+    pillClass: 'bg-[#fff1f2] text-[#dc2626] border border-[#fecdd3]',
+  },
+  L: {
+    label: 'Leave',
+    dotClass: 'bg-[#f59e0b]',
+    selectedDotClass: 'bg-[#fbbf24]',
+    pillClass: 'bg-[#fefce8] text-[#b45309] border border-[#fde68a]',
+  },
+  LT: {
+    label: 'Late',
+    dotClass: 'bg-[#ea580c]',
+    selectedDotClass: 'bg-[#fb923c]',
+    pillClass: 'bg-[#fff7ed] text-[#c2410c] border border-[#fed7aa]',
+  },
+  H: {
+    label: 'Half Day',
+    dotClass: 'bg-[#7c3aed]',
+    selectedDotClass: 'bg-[#a78bfa]',
+    pillClass: 'bg-[#f5f3ff] text-[#6d28d9] border border-[#ddd6fe]',
+  },
+};
 
 interface AttendanceModuleScreenProps {
   onNavigateHome: () => void;
@@ -66,7 +110,7 @@ export default function AttendanceModuleScreen({
   initialTab = 'STUDENTS',
   initialStudentId,
 }: AttendanceModuleScreenProps) {
-  const { monthYearStr } = useISTCurrentDate();
+  const { monthYearStr, todayDateKey } = useISTCurrentDate();
 
   // Navigation & Sub-views state
   const [activeTab, setActiveTab] = useState<'STUDENTS' | 'CLASS_SUMMARY'>(initialTab);
@@ -83,13 +127,18 @@ export default function AttendanceModuleScreen({
     }
   }, [monthYearStr, isCustomMonth]);
 
-  const monthKey = useMemo(() => {
-    return parseMonthYearToYearMonth(selectedMonth).monthKey;
+  const parsedSelectedMonth = useMemo(() => {
+    return parseMonthYearToYearMonth(selectedMonth);
   }, [selectedMonth]);
+
+  const monthKey = parsedSelectedMonth.monthKey;
 
   const monthOptions = useMemo(() => {
     return getRecentAndSurroundingMonthYears();
   }, [monthYearStr]);
+
+  // Selected date within Student Attendance monthly calendar
+  const [selectedCalendarDateKey, setSelectedCalendarDateKey] = useState<string>(todayDateKey);
 
   // Dropdown open states
   const [showGradeDropdown, setShowGradeDropdown] = useState(false);
@@ -99,12 +148,7 @@ export default function AttendanceModuleScreen({
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<'default' | 'desc' | 'asc'>('default');
 
-  // Interactive Modals
-  const [showCorrectionModal, setShowCorrectionModal] = useState(false);
-  const [correctionSelectedDate, setCorrectionSelectedDate] = useState<string | null>(null);
-  const [correctionWorkingStatus, setCorrectionWorkingStatus] = useState<'P' | 'A' | 'L'>('P');
-
-  const [showPublishModal, setShowPublishModal] = useState(false);
+  // Toast & Tie insights modal
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const [tieModalData, setTieModalData] = useState<{
@@ -112,8 +156,14 @@ export default function AttendanceModuleScreen({
     students: TiedInsightItem[];
   } | null>(null);
 
-  // Data Refresh Trigger
+  // Data Refresh Trigger (syncs with storage updates from Take Attendance)
   const [dataVersion, setDataVersion] = useState(0);
+
+  useEffect(() => {
+    const handleStorage = () => setDataVersion((v) => v + 1);
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -195,41 +245,62 @@ export default function AttendanceModuleScreen({
     );
   };
 
-  // Correction handling
-  const handleOpenCorrection = () => {
-    if (!activeStudent || activeStudent.dailyRecords.length === 0) return;
-    const firstDay = activeStudent.dailyRecords[0];
-    setCorrectionSelectedDate(firstDay.date);
-    setCorrectionWorkingStatus(firstDay.status);
-    setShowCorrectionModal(true);
-  };
-
-  const handleApplyCorrection = () => {
-    if (!activeStudent || !correctionSelectedDate) return;
-    try {
-      updateStudentDayAttendance(
-        activeStudent.studentId,
-        selectedGrade,
-        monthKey,
-        correctionSelectedDate,
-        correctionWorkingStatus
-      );
-      setDataVersion((v) => v + 1);
-      setShowCorrectionModal(false);
-      showToast(`Attendance updated for ${correctionSelectedDate}`);
-    } catch (err) {
-      showToast('Failed to update record');
+  // Default selected calendar date when opening a student or switching month
+  useEffect(() => {
+    if (!selectedStudentId || !activeStudent) return;
+    if (monthKey === todayDateKey.slice(0, 7)) {
+      setSelectedCalendarDateKey(todayDateKey);
+    } else if (activeStudent.dailyRecords.length > 0) {
+      setSelectedCalendarDateKey(activeStudent.dailyRecords[0].date);
+    } else {
+      setSelectedCalendarDateKey(`${monthKey}-01`);
     }
+  }, [selectedStudentId, monthKey, todayDateKey]);
+
+  const handleShiftStudentMonth = (deltaMonths: number) => {
+    const shifted = new Date(
+      Date.UTC(parsedSelectedMonth.year, parsedSelectedMonth.monthIndex + deltaMonths, 1, 12, 0, 0)
+    );
+    const nextKey = `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, '0')}`;
+    const nextLabel = formatMonthKeyToMonthYear(nextKey);
+    setIsCustomMonth(nextLabel !== monthYearStr);
+    setSelectedMonth(nextLabel);
   };
 
-  // Publishing handling
-  const handlePublish = () => {
-    if (!activeStudent) return;
-    const res = publishStudentMonthlyAttendance(activeStudent.studentId, selectedGrade, monthKey);
-    setDataVersion((v) => v + 1);
-    setShowPublishModal(false);
-    showToast(res.message);
-  };
+  // Daily record lookup map for the active student's calendar month
+  const activeStudentDailyMap = useMemo(() => {
+    const map = new Map<string, DailyAttendanceStatus>();
+    if (!activeStudent) return map;
+    for (const rec of activeStudent.dailyRecords) {
+      map.set(rec.date, rec);
+    }
+    return map;
+  }, [activeStudent]);
+
+  const effectiveSelectedDateKey = useMemo(() => {
+    if (selectedCalendarDateKey.startsWith(`${monthKey}-`)) {
+      return selectedCalendarDateKey;
+    }
+    if (monthKey === todayDateKey.slice(0, 7)) {
+      return todayDateKey;
+    }
+    if (activeStudent && activeStudent.dailyRecords.length > 0) {
+      return activeStudent.dailyRecords[0].date;
+    }
+    return `${monthKey}-01`;
+  }, [selectedCalendarDateKey, monthKey, todayDateKey, activeStudent]);
+
+  // Calendar grid geometry for the viewed month (UTC-anchored)
+  const calendarGridData = useMemo(() => {
+    const { year, monthIndex } = parsedSelectedMonth;
+    const daysInMonth = getDaysInMonthUTC(year, monthIndex);
+    const leadingPadding = getMonthLeadingPaddingDaysUTC(year, monthIndex);
+    const days: number[] = [];
+    for (let d = 1; d <= daysInMonth; d++) {
+      days.push(d);
+    }
+    return { year, monthIndex, leadingCount: leadingPadding.length, days };
+  }, [parsedSelectedMonth]);
 
   return (
     <div className="relative w-full h-full bg-white flex flex-col font-sans select-none overflow-hidden">
@@ -242,26 +313,26 @@ export default function AttendanceModuleScreen({
       )}
 
       {/* ========================================================================= */}
-      {/* SCREEN 2: INDIVIDUAL STUDENT ATTENDANCE SUMMARY                           */}
+      {/* SCREEN 2: INDIVIDUAL STUDENT OVERALL ATTENDANCE                           */}
       {/* ========================================================================= */}
       {selectedStudentId && activeStudent ? (
         <div className="flex-1 flex flex-col h-full overflow-hidden bg-white">
-          {/* Top Bar with Standardized Back Chevron */}
+          {/* 1. Student Attendance Heading */}
           <div className="px-4 pt-3 pb-2 border-b border-[#f3f4f6] shrink-0">
             <div className="flex items-start gap-1.5 min-w-0">
               <button
                 type="button"
                 onClick={() => setSelectedStudentId(null)}
                 className="p-1 -ml-1 text-neutral-800 hover:text-black active:scale-95 transition cursor-pointer shrink-0 mt-0.5 rounded-md hover:bg-neutral-100/60"
-                aria-label="Back to Students list"
+                aria-label="Back to Attendance list"
               >
                 <ChevronLeft className="w-5 h-5 text-neutral-900 stroke-[2.2]" />
               </button>
               <div className="min-w-0 flex-1">
-                <h1 className="text-[22px] sm:text-[24px] font-extrabold text-neutral-950 tracking-tight leading-tight">
+                <h1 className="text-[20px] sm:text-[22px] font-extrabold text-neutral-950 tracking-tight leading-tight">
                   Student Attendance
                 </h1>
-                <p className="text-[12px] sm:text-[12.5px] text-[#717684] mt-0.5">
+                <p className="text-[12px] text-[#717684] mt-0.5">
                   View monthly attendance details
                 </p>
               </div>
@@ -269,199 +340,254 @@ export default function AttendanceModuleScreen({
           </div>
 
           {/* Scrollable Content Body */}
-          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3.5 no-scrollbar">
-            {/* Student Profile Card */}
-            <div className="bg-[#fcfdfd] border border-[#e5e7eb] rounded-2xl p-3 flex items-center gap-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
-              {renderStudentAvatar(activeStudent.avatar, activeStudent.name, 'w-13 h-13 text-base')}
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-[16px] font-bold text-neutral-950 truncate">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden px-3.5 py-3 space-y-3 no-scrollbar">
+            {/* 2. Student Profile & Overall Attendance Percentage Badge */}
+            <div className="bg-[#fcfdfd] border border-[#e5e7eb] rounded-2xl px-3 py-2.5 flex items-center justify-between gap-2.5 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                {renderStudentAvatar(activeStudent.avatar, activeStudent.name, 'w-11 h-11 text-sm')}
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-[15px] font-bold text-neutral-950 truncate leading-snug">
                     {activeStudent.name}
-                  </h3>
-                  {activeStudent.isPublished && (
-                    <span className="text-[10px] font-bold text-neutral-800 bg-[#f8f9fa] border border-neutral-200 px-2 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
-                      <img
-                        src={getAssetUrl('/assets/Dark Verified Check Badge.png')}
-                        alt="Verified"
-                        className="w-3 h-3 object-contain shrink-0"
-                      />
-                      <span>Published</span>
-                    </span>
-                  )}
+                  </h2>
+                  <p className="text-[11.5px] text-[#717684] mt-0.5 truncate">
+                    {activeStudent.grade} &nbsp;|&nbsp; Roll No. {activeStudent.rollNo}
+                  </p>
                 </div>
-                <p className="text-[12px] text-[#717684] mt-0.5">
-                  {activeStudent.grade} &nbsp;|&nbsp; Roll No. {activeStudent.rollNo}
-                </p>
               </div>
+
+              <span
+                className={`px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap shrink-0 tabular-nums ${getPercentageBadgeStyle(
+                  activeStudent.attendancePercentage
+                )}`}
+              >
+                {activeStudent.attendancePercentage}% Overall
+              </span>
             </div>
 
-            {/* 4 Stat Summary Cards in a Row */}
-            <div className="grid grid-cols-4 gap-2">
-              {/* Stat 1: Total Working Days */}
-              <div className="bg-[#f8f9fa] border border-[#eef0f3] rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-center text-center">
-                <span className="text-[19px] font-black text-neutral-900 leading-none">
-                  {activeStudent.totalWorkingDays}
-                </span>
-                <span className="text-[9px] sm:text-[9.5px] text-[#717684] font-medium mt-1 leading-tight">
-                  Total<br />Working Days
+            {/* 3. Six Compact Attendance Summary Boxes in ONE Horizontal Row */}
+            <div className="grid grid-cols-6 gap-1 items-stretch">
+              {/* 1. Total Days (Neutral grey) */}
+              <div className="bg-[#f8f9fa] border border-[#e5e7eb] rounded-xl px-0.5 py-2 min-h-[60px] flex flex-col items-center justify-center text-center">
+                <div className="h-5 flex items-center justify-center">
+                  <span className="text-[15px] sm:text-[16px] font-extrabold text-neutral-950 leading-none tabular-nums">
+                    {activeStudent.totalWorkingDays}
+                  </span>
+                </div>
+                <span className="min-h-[22px] flex items-center justify-center text-[8.5px] sm:text-[9px] font-semibold text-[#525866] mt-0.5 leading-[1.15]">
+                  Total Days
                 </span>
               </div>
 
-              {/* Stat 2: Present */}
-              <div className="bg-[#f0fdf4] border border-[#bbf7d0] rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-center text-center">
-                <span className="text-[19px] font-black text-[#16a34a] leading-none">
-                  {activeStudent.presentDays}
-                </span>
-                <span className="text-[9px] sm:text-[9.5px] text-[#717684] font-medium mt-1 leading-tight">
+              {/* 2. Present (Green) */}
+              <div className="bg-[#effaf3] border border-[#bbf7d0] rounded-xl px-0.5 py-2 min-h-[60px] flex flex-col items-center justify-center text-center">
+                <div className="h-5 flex items-center justify-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#15803d] shrink-0" aria-hidden="true" />
+                  <span className="text-[15px] sm:text-[16px] font-extrabold text-neutral-950 leading-none tabular-nums">
+                    {activeStudent.presentDays}
+                  </span>
+                </div>
+                <span className="min-h-[22px] flex items-center justify-center text-[8.5px] sm:text-[9px] font-semibold text-[#15803d] mt-0.5 leading-[1.15]">
                   Present
                 </span>
               </div>
 
-              {/* Stat 3: Absent */}
-              <div className="bg-[#fef2f2] border border-[#fecaca] rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-center text-center">
-                <span className="text-[19px] font-black text-[#dc2626] leading-none">
-                  {activeStudent.absentDays}
-                </span>
-                <span className="text-[9px] sm:text-[9.5px] text-[#717684] font-medium mt-1 leading-tight">
+              {/* 3. Absent (Red) */}
+              <div className="bg-[#fff1f2] border border-[#fecdd3] rounded-xl px-0.5 py-2 min-h-[60px] flex flex-col items-center justify-center text-center">
+                <div className="h-5 flex items-center justify-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#dc2626] shrink-0" aria-hidden="true" />
+                  <span className="text-[15px] sm:text-[16px] font-extrabold text-neutral-950 leading-none tabular-nums">
+                    {activeStudent.absentDays}
+                  </span>
+                </div>
+                <span className="min-h-[22px] flex items-center justify-center text-[8.5px] sm:text-[9px] font-semibold text-[#dc2626] mt-0.5 leading-[1.15]">
                   Absent
                 </span>
               </div>
 
-              {/* Stat 4: On Leave */}
-              <div className="bg-[#eff6ff] border border-[#bfdbfe] rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-center text-center">
-                <span className="text-[19px] font-black text-[#2563eb] leading-none">
-                  {activeStudent.onLeaveDays}
+              {/* 4. Leave (Amber) */}
+              <div className="bg-[#fefce8] border border-[#fde68a] rounded-xl px-0.5 py-2 min-h-[60px] flex flex-col items-center justify-center text-center">
+                <div className="h-5 flex items-center justify-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#f59e0b] shrink-0" aria-hidden="true" />
+                  <span className="text-[15px] sm:text-[16px] font-extrabold text-neutral-950 leading-none tabular-nums">
+                    {activeStudent.onLeaveDays}
+                  </span>
+                </div>
+                <span className="min-h-[22px] flex items-center justify-center text-[8.5px] sm:text-[9px] font-semibold text-[#b45309] mt-0.5 leading-[1.15]">
+                  Leave
                 </span>
-                <span className="text-[9px] sm:text-[9.5px] text-[#717684] font-medium mt-1 leading-tight">
-                  On Leave
+              </div>
+
+              {/* 5. Late (Orange) */}
+              <div className="bg-[#fff7ed] border border-[#fed7aa] rounded-xl px-0.5 py-2 min-h-[60px] flex flex-col items-center justify-center text-center">
+                <div className="h-5 flex items-center justify-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#ea580c] shrink-0" aria-hidden="true" />
+                  <span className="text-[15px] sm:text-[16px] font-extrabold text-neutral-950 leading-none tabular-nums">
+                    {activeStudent.lateDays ?? 0}
+                  </span>
+                </div>
+                <span className="min-h-[22px] flex items-center justify-center text-[8.5px] sm:text-[9px] font-semibold text-[#c2410c] mt-0.5 leading-[1.15]">
+                  Late
+                </span>
+              </div>
+
+              {/* 6. Half Day (Purple) */}
+              <div className="bg-[#f5f3ff] border border-[#ddd6fe] rounded-xl px-0.5 py-2 min-h-[60px] flex flex-col items-center justify-center text-center">
+                <div className="h-5 flex items-center justify-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#7c3aed] shrink-0" aria-hidden="true" />
+                  <span className="text-[15px] sm:text-[16px] font-extrabold text-neutral-950 leading-none tabular-nums">
+                    {activeStudent.halfDayDays ?? 0}
+                  </span>
+                </div>
+                <span className="min-h-[22px] flex items-center justify-center text-[8.5px] sm:text-[9px] font-semibold text-[#6d28d9] mt-0.5 leading-[1.15]">
+                  Half Day
                 </span>
               </div>
             </div>
 
-            {/* Attendance Summary Certificate Card */}
-            <div className="bg-white border border-[#e5e7eb] rounded-2xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.03)] space-y-3.5">
-              {/* Header inside Certificate */}
-              <div className="flex items-center justify-between pb-1">
-                <h4 className="text-[14px] font-bold text-neutral-900 tracking-tight">
-                  Attendance Summary
-                </h4>
-                <span className="text-[11.5px] font-medium text-[#717684]">
+            {/* 4 & 5. Interactive Monthly Attendance Calendar + Selected-Date Details */}
+            <div className="bg-white border border-[#e5e7eb] rounded-3xl p-3.5 sm:p-4 shadow-[0_2px_10px_rgba(0,0,0,0.03)]">
+              {/* Month Navigation Header */}
+              <div className="flex items-center justify-between px-1 pb-2">
+                <button
+                  type="button"
+                  onClick={() => handleShiftStudentMonth(-1)}
+                  aria-label="Previous month"
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-neutral-800 hover:bg-neutral-100 active:scale-95 transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black"
+                >
+                  <ChevronLeft className="w-4.5 h-4.5 stroke-[2.2]" />
+                </button>
+
+                <h3 className="text-[15px] font-bold text-neutral-950 tracking-tight">
                   {activeStudent.monthName}
-                </span>
+                </h3>
+
+                <button
+                  type="button"
+                  onClick={() => handleShiftStudentMonth(1)}
+                  aria-label="Next month"
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-neutral-800 hover:bg-neutral-100 active:scale-95 transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black"
+                >
+                  <ChevronRight className="w-4.5 h-4.5 stroke-[2.2]" />
+                </button>
               </div>
 
-              {/* School Branding Row */}
-              <div className="flex items-center gap-2.5 pt-0.5">
-                <div className="w-8 h-8 rounded-lg bg-black text-white flex items-center justify-center shrink-0">
-                  <School className="w-4.5 h-4.5 stroke-[2]" />
-                </div>
-                <div>
-                  <h5 className="text-[12.5px] font-bold text-neutral-950 leading-tight">
-                    Greenwood
-                  </h5>
-                  <p className="text-[11.5px] font-medium text-neutral-800 leading-tight">
-                    International School
-                  </p>
-                </div>
-              </div>
-
-              {/* Student Identification sub-block */}
-              <div className="flex items-center gap-3 pt-1">
-                {renderStudentAvatar(activeStudent.avatar, activeStudent.name, 'w-11 h-11 text-sm')}
-                <div>
-                  <h5 className="text-[13.5px] font-bold text-neutral-950">
-                    {activeStudent.name}
-                  </h5>
-                  <p className="text-[11px] text-[#717684]">
-                    {activeStudent.grade} &nbsp;|&nbsp; Roll No. {activeStudent.rollNo}
-                  </p>
-                  <p className="text-[10.5px] text-[#717684]">
-                    Class Teacher: {activeStudent.teacherName}
-                  </p>
-                </div>
-              </div>
-
-              {/* Summary Table */}
-              <div className="border border-[#e5e7eb] rounded-xl overflow-hidden text-[12px]">
-                <div className="flex items-center justify-between px-3 py-2 border-b border-[#e5e7eb] bg-white">
-                  <span className="text-neutral-700 font-medium">Total Working Days</span>
-                  <span className="font-bold text-neutral-950">{activeStudent.totalWorkingDays}</span>
-                </div>
-                <div className="flex items-center justify-between px-3 py-2 border-b border-[#e5e7eb] bg-white">
-                  <span className="text-neutral-700 font-medium">Present Days</span>
-                  <span className="font-bold text-neutral-950">{activeStudent.presentDays}</span>
-                </div>
-                <div className="flex items-center justify-between px-3 py-2 border-b border-[#e5e7eb] bg-white">
-                  <span className="text-neutral-700 font-medium">Absent Days</span>
-                  <span className="font-bold text-neutral-950">{activeStudent.absentDays}</span>
-                </div>
-                <div className="flex items-center justify-between px-3 py-2 border-b border-[#e5e7eb] bg-white">
-                  <span className="text-neutral-700 font-medium">On Leave Days</span>
-                  <span className="font-bold text-neutral-950">{activeStudent.onLeaveDays}</span>
-                </div>
-                <div className="flex items-center justify-between px-3 py-2.5 bg-[#f0fdf4] font-bold">
-                  <span className="text-neutral-900">Attendance Percentage</span>
-                  <span className="text-[13.5px] text-[#16a34a] font-black">
-                    {activeStudent.attendancePercentage}%
+              {/* Weekday Headings */}
+              <div className="grid grid-cols-7 gap-1 pt-1 pb-1.5 text-center">
+                {CALENDAR_WEEKDAYS.map((dayLabel) => (
+                  <span
+                    key={dayLabel}
+                    className="text-[10px] font-bold text-[#8e95a2] tracking-wider"
+                  >
+                    {dayLabel}
                   </span>
-                </div>
+                ))}
               </div>
 
-              {/* Remarks and Teacher Signature Section */}
-              <div className="flex items-end justify-between pt-2">
-                <div className="max-w-[190px]">
-                  <span className="text-[10.5px] font-bold text-neutral-900 block uppercase tracking-wider">
-                    Remarks
-                  </span>
-                  <p className="text-[11.5px] text-[#6b7280] italic mt-0.5 leading-snug">
-                    {activeStudent.remarks}
-                  </p>
-                </div>
+              {/* Calendar Date Cells */}
+              <div className="grid grid-cols-7 gap-y-1 gap-x-1">
+                {Array.from({ length: calendarGridData.leadingCount }).map((_, idx) => (
+                  <div key={`lead-${idx}`} aria-hidden="true" className="h-9 sm:h-10" />
+                ))}
 
-                <div className="flex flex-col items-end">
-                  {/* Stylized Handwritten Signature */}
-                  <div className="h-6 flex items-center pr-1 opacity-80">
-                    <span className="font-serif italic text-[16px] text-neutral-900 tracking-tighter select-none font-bold">
-                      Priya S.
-                    </span>
+                {calendarGridData.days.map((day) => {
+                  const cellDateKey = buildDateKey(
+                    calendarGridData.year,
+                    calendarGridData.monthIndex,
+                    day
+                  );
+                  const dayRecord = activeStudentDailyMap.get(cellDateKey);
+                  const isSelected = effectiveSelectedDateKey === cellDateKey;
+                  const isToday = todayDateKey === cellDateKey;
+                  const statusMeta = dayRecord ? STUDENT_STATUS_META[dayRecord.status] : null;
+
+                  return (
+                    <div key={cellDateKey} className="flex items-center justify-center h-9 sm:h-10">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCalendarDateKey(cellDateKey)}
+                        aria-label={`${formatISTShortWeekdayDate(parseDateKeySafe(cellDateKey))}${
+                          statusMeta ? ` - ${statusMeta.label}` : ' - No attendance record'
+                        }`}
+                        aria-pressed={isSelected}
+                        className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex flex-col items-center justify-center transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black ${
+                          isSelected
+                            ? 'bg-neutral-950 text-white font-bold shadow-xs'
+                            : isToday
+                            ? 'bg-neutral-100 ring-1 ring-neutral-400 text-neutral-950 font-bold hover:bg-neutral-200/70'
+                            : 'text-neutral-900 font-semibold hover:bg-neutral-100'
+                        }`}
+                      >
+                        <span className="text-[12px] sm:text-[12.5px] leading-none tabular-nums">
+                          {day}
+                        </span>
+                        {statusMeta ? (
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full mt-0.5 ${
+                              isSelected ? statusMeta.selectedDotClass : statusMeta.dotClass
+                            }`}
+                          />
+                        ) : (
+                          <span className="w-1.5 h-1.5 mt-0.5" aria-hidden="true" />
+                        )}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Selected-Date Attendance Details (within calendar card only) */}
+              {(() => {
+                const selectedRecord = activeStudentDailyMap.get(effectiveSelectedDateKey);
+                const selectedStatusMeta = selectedRecord
+                  ? STUDENT_STATUS_META[selectedRecord.status]
+                  : null;
+                const selectedDateFormatted = formatISTShortWeekdayDate(
+                  parseDateKeySafe(effectiveSelectedDateKey)
+                );
+                const isSelectedToday = effectiveSelectedDateKey === todayDateKey;
+
+                return (
+                  <div className="border-t border-[#f0f2f5] mt-3 pt-3 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-[12.5px] font-bold text-neutral-950 truncate">
+                        {selectedDateFormatted}
+                      </span>
+                      {isSelectedToday && (
+                        <span className="bg-neutral-950 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0">
+                          Today
+                        </span>
+                      )}
+                    </div>
+
+                    {selectedStatusMeta ? (
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold shrink-0 ${selectedStatusMeta.pillClass}`}
+                      >
+                        {selectedStatusMeta.label}
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-neutral-100 text-neutral-500 border border-neutral-200 shrink-0">
+                        No Record
+                      </span>
+                    )}
                   </div>
-                  <span className="text-[11px] font-bold text-neutral-900 mt-0.5 leading-none">
-                    {activeStudent.teacherName}
-                  </span>
-                  <span className="text-[9.5px] text-[#717684] mt-0.5 leading-none">
-                    {activeStudent.teacherRole}
-                  </span>
-                </div>
-              </div>
+                );
+              })()}
             </div>
           </div>
 
-          {/* Bottom Fixed Action Buttons */}
-          <div className="p-3 border-t border-[#f0f2f5] bg-white shrink-0 space-y-2">
-            <div className="grid grid-cols-2 gap-2.5">
-              {/* Correct Attendance Button */}
-              <button
-                type="button"
-                onClick={handleOpenCorrection}
-                className="w-full flex items-center justify-center gap-2 border border-neutral-900 text-neutral-900 hover:bg-neutral-50 active:scale-[0.98] py-2.5 px-3 rounded-2xl text-[12.5px] font-bold transition cursor-pointer shadow-2xs"
-              >
-                <Edit3 className="w-4 h-4 stroke-[2]" />
-                <span>Correct Attendance</span>
-              </button>
-
-              {/* Publish Button */}
-              <button
-                type="button"
-                onClick={() => setShowPublishModal(true)}
-                className="w-full flex items-center justify-center gap-2 bg-black text-white hover:bg-neutral-800 active:scale-[0.98] py-2.5 px-3 rounded-2xl text-[12.5px] font-bold transition cursor-pointer shadow-sm"
-              >
-                <Send className="w-4 h-4 stroke-[2]" />
-                <span>{activeStudent.isPublished ? 'Re-Publish' : 'Publish'}</span>
-              </button>
-            </div>
+          {/* 6. Bottom Close Action */}
+          <div className="px-4 pt-2.5 pb-2 border-t border-[#f0f2f5] bg-white shrink-0 space-y-2">
+            <button
+              type="button"
+              onClick={() => setSelectedStudentId(null)}
+              className="w-full bg-black hover:bg-neutral-900 active:scale-[0.99] text-white py-3 px-4 rounded-2xl text-[13.5px] font-bold transition cursor-pointer shadow-xs"
+            >
+              Close
+            </button>
 
             {/* iOS Home Indicator */}
-            <div className="w-24 sm:w-32 h-1 bg-black rounded-full mx-auto mt-1" />
+            <div className="w-24 sm:w-32 h-1 bg-black rounded-full mx-auto" />
           </div>
         </div>
       ) : activeTab === 'CLASS_SUMMARY' ? (
@@ -1025,164 +1151,6 @@ export default function AttendanceModuleScreen({
             onNavigateMyRequests={onNavigateMyRequests || (() => showToast('My Requests'))}
             onNavigateProfile={onNavigateProfile}
           />
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* MODAL 1: CORRECT ATTENDANCE                                               */}
-      {/* ========================================================================= */}
-      {showCorrectionModal && activeStudent && (
-        <div className="absolute inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-150">
-          <div className="bg-white w-full max-w-[370px] rounded-t-3xl sm:rounded-3xl shadow-2xl p-4 flex flex-col max-h-[85vh] overflow-hidden">
-            <div className="flex items-center justify-between pb-3 border-b border-[#f0f2f5]">
-              <div>
-                <h3 className="text-[15px] font-bold text-neutral-950 leading-tight">
-                  Correct Attendance
-                </h3>
-                <p className="text-[11px] text-[#717684]">
-                  {activeStudent.name} • {activeStudent.grade}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowCorrectionModal(false)}
-                className="w-7 h-7 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-600 hover:bg-neutral-200"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto py-3 space-y-3 no-scrollbar">
-              <span className="text-[11px] font-bold text-neutral-700 uppercase tracking-wider block">
-                Select Working Day to Update
-              </span>
-
-              {/* List of Working Days */}
-              <div className="grid grid-cols-4 gap-1.5 max-h-[180px] overflow-y-auto p-1 border border-[#e5e7eb] rounded-xl">
-                {activeStudent.dailyRecords.map((d) => (
-                  <button
-                    key={d.date}
-                    type="button"
-                    onClick={() => {
-                      setCorrectionSelectedDate(d.date);
-                      setCorrectionWorkingStatus(d.status);
-                    }}
-                    className={`py-1.5 px-1 rounded-lg text-center text-[10.5px] font-semibold transition border cursor-pointer ${
-                      correctionSelectedDate === d.date
-                        ? 'bg-black text-white border-black'
-                        : d.status === 'P'
-                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                        : d.status === 'A'
-                        ? 'bg-red-50 text-red-800 border-red-200'
-                        : 'bg-amber-50 text-amber-800 border-amber-200'
-                    }`}
-                  >
-                    <div>{d.dayName} {d.dayNumber}</div>
-                    <div className="text-[9px] font-bold uppercase mt-0.5">
-                      {d.status === 'P' ? 'Present' : d.status === 'A' ? 'Absent' : 'Leave'}
-                    </div>
-                  </button>
-                ))}
-              </div>
-
-              {/* Status Radio options for the selected day */}
-              {correctionSelectedDate && (
-                <div className="bg-[#f8f9fa] p-3 rounded-2xl border border-[#e5e7eb] space-y-2">
-                  <span className="text-[11.5px] font-bold text-neutral-900 block">
-                    Update status for {correctionSelectedDate}:
-                  </span>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setCorrectionWorkingStatus('P')}
-                      className={`py-2 rounded-xl text-[11.5px] font-bold border transition ${
-                        correctionWorkingStatus === 'P'
-                          ? 'bg-[#16a34a] text-white border-[#16a34a] shadow-xs'
-                          : 'bg-white text-neutral-800 border-[#e5e7eb]'
-                      }`}
-                    >
-                      P (Present)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCorrectionWorkingStatus('A')}
-                      className={`py-2 rounded-xl text-[11.5px] font-bold border transition ${
-                        correctionWorkingStatus === 'A'
-                          ? 'bg-[#dc2626] text-white border-[#dc2626] shadow-xs'
-                          : 'bg-white text-neutral-800 border-[#e5e7eb]'
-                      }`}
-                    >
-                      A (Absent)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCorrectionWorkingStatus('L')}
-                      className={`py-2 rounded-xl text-[11.5px] font-bold border transition ${
-                        correctionWorkingStatus === 'L'
-                          ? 'bg-[#d97706] text-white border-[#d97706] shadow-xs'
-                          : 'bg-white text-neutral-800 border-[#e5e7eb]'
-                      }`}
-                    >
-                      L (Leave)
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="pt-2 border-t border-[#f0f2f5] flex gap-2">
-              <button
-                type="button"
-                onClick={() => setShowCorrectionModal(false)}
-                className="flex-1 py-2 text-[12px] font-bold text-neutral-600 hover:bg-neutral-100 rounded-xl"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleApplyCorrection}
-                className="flex-1 py-2 text-[12px] font-bold bg-black text-white hover:bg-neutral-800 rounded-xl shadow-xs"
-              >
-                Save Correction
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* MODAL 2: PUBLISH CONFIRMATION                                             */}
-      {/* ========================================================================= */}
-      {showPublishModal && activeStudent && (
-        <div className="absolute inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-white w-full max-w-[340px] rounded-3xl shadow-2xl p-5 text-center">
-            <div className="w-12 h-12 rounded-full bg-black text-white flex items-center justify-center mx-auto mb-3">
-              <Send className="w-5 h-5 stroke-[2]" />
-            </div>
-            <h3 className="text-[16px] font-bold text-neutral-950">
-              Publish Monthly Record
-            </h3>
-            <p className="text-[12px] text-[#717684] mt-1 leading-relaxed">
-              Are you sure you want to officially publish the {activeStudent.monthName} attendance
-              summary for <span className="font-bold text-neutral-900">{activeStudent.name}</span> ({activeStudent.attendancePercentage}%)?
-            </p>
-            <div className="mt-4 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setShowPublishModal(false)}
-                className="flex-1 py-2.5 text-[12px] font-bold text-neutral-700 hover:bg-neutral-100 rounded-xl border border-neutral-200"
-              >
-                Review Again
-              </button>
-              <button
-                type="button"
-                onClick={handlePublish}
-                className="flex-1 py-2.5 text-[12px] font-bold bg-black text-white hover:bg-neutral-800 rounded-xl shadow-xs"
-              >
-                Confirm & Publish
-              </button>
-            </div>
-          </div>
         </div>
       )}
 
