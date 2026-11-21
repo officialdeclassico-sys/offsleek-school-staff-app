@@ -8,7 +8,6 @@ import { Eye, Home, Users } from 'lucide-react';
 import { HomeworkRecord, formatDueDateFromDateKey } from './services/homeworkService';
 import { triggerSuccessFeedback } from './utils/feedback';
 import AnimatedStaffVerifiedBadge from './components/AnimatedStaffVerifiedBadge';
-import StaffStatusBar from './components/StaffStatusBar';
 import { formatISTDateMedium, formatISTTime12h } from './utils/dateTimeUtils';
 
 interface HomeworkAssignedSuccessProps {
@@ -36,10 +35,8 @@ export default function HomeworkAssignedSuccess({
 
   return (
     <div className="relative w-full h-full bg-white flex flex-col justify-between overflow-hidden select-none text-neutral-900 font-sans">
-      <StaffStatusBar />
-
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-4 sm:px-5 py-2 flex flex-col items-center justify-center text-center">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-4 sm:px-5 pt-[max(0.75rem,env(safe-area-inset-top))] pb-4 flex flex-col items-center justify-center text-center">
         {/* Global Animated Verified Badge (Reused from Add Marks / Take Attendance) */}
         <AnimatedStaffVerifiedBadge
           size="hero"

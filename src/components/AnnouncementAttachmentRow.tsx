@@ -34,7 +34,7 @@ export default function AnnouncementAttachmentRow({
       className={`w-full min-w-0 box-border bg-neutral-100/80 hover:bg-neutral-100 border border-neutral-200/60 rounded-xl p-2.5 flex items-center justify-between gap-2 mt-3.5 transition-colors cursor-pointer ${className}`}
     >
       <div className="flex items-center gap-2.5 min-w-0 flex-1">
-        <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-md tracking-wider shrink-0">
+        <span className="bg-black text-white text-[10px] font-bold px-2 py-1 rounded-md tracking-wider shrink-0">
           {badgeLabel}
         </span>
 

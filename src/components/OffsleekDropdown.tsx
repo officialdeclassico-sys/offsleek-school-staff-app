@@ -124,23 +124,34 @@ export default function OffsleekDropdown({
     };
   }, [isOpen]);
 
-  // Sync highlighted option & scroll selected option into view when opened
+  // Reset hover highlight and scroll selected option into view when opened
   useEffect(() => {
-    if (!isOpen) return;
-    const initialIdx = selectedIndex >= 0 ? selectedIndex : 0;
-    setHighlightedIndex(initialIdx);
+    if (!isOpen) {
+      setHighlightedIndex(-1);
+      return;
+    }
+    setHighlightedIndex(-1);
 
-    requestAnimationFrame(() => {
-      const targetEl = optionRefs.current[initialIdx];
-      if (targetEl && typeof targetEl.scrollIntoView === 'function') {
-        targetEl.scrollIntoView({ block: 'nearest' });
-      }
-    });
+    if (selectedIndex >= 0) {
+      requestAnimationFrame(() => {
+        const targetEl = optionRefs.current[selectedIndex];
+        if (targetEl && typeof targetEl.scrollIntoView === 'function') {
+          targetEl.scrollIntoView({ block: 'nearest' });
+        }
+      });
+    }
   }, [isOpen, selectedIndex]);
 
   const moveHighlight = (direction: 1 | -1) => {
     if (options.length === 0) return;
-    let next = highlightedIndex;
+    let next =
+      highlightedIndex >= 0
+        ? highlightedIndex
+        : selectedIndex >= 0
+          ? selectedIndex
+          : direction === 1
+            ? -1
+            : 0;
     for (let step = 0; step < options.length; step++) {
       next = (next + direction + options.length) % options.length;
       if (!options[next]?.disabled) {
@@ -243,7 +254,8 @@ export default function OffsleekDropdown({
         className={`${OFFSLEEK_DROPDOWN_TOKENS.menuBase} ${menuWidthClass} animate-in fade-in duration-120`}
       >
         <div
-          style={{ maxHeight: `${geometry.maxHeight}px` }}
+          style={{ maxHeight: `${Math.max(0, geometry.maxHeight - 2)}px` }}
+          onMouseLeave={() => setHighlightedIndex(-1)}
           className={`${OFFSLEEK_DROPDOWN_TOKENS.listBase} ${maxMenuHeightClass}`}
         >
           {options.length === 0 ? (
@@ -275,7 +287,7 @@ export default function OffsleekDropdown({
                     <div className="truncate leading-snug">{opt.label}</div>
                     {opt.description && (
                       <div
-                        className={`text-[10px] mt-0.5 truncate leading-tight ${
+                        className={`offsleek-dropdown-option-desc text-[10px] mt-0.5 truncate leading-tight ${
                           isSelected ? 'text-neutral-300' : 'text-[#6b7280]'
                         }`}
                       >

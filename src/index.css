@@ -33,7 +33,8 @@
   --offsleek-dropdown-border-focus: #000000;
   --offsleek-dropdown-text: #000000;
   --offsleek-dropdown-muted: #6b7280;
-  --offsleek-dropdown-hover-bg: #f3f4f6;
+  --offsleek-dropdown-hover-bg: #000000;
+  --offsleek-dropdown-hover-text: #ffffff;
   --offsleek-dropdown-selected-bg: #000000;
   --offsleek-dropdown-selected-text: #ffffff;
   --offsleek-dropdown-trigger-radius: 12px;
@@ -71,6 +72,9 @@
 
 .offsleek-dropdown-list {
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
   width: 100%;
   min-height: 0;
   padding: 0;
@@ -85,6 +89,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-shrink: 0;
   width: 100%;
   margin: 0;
   border: 0;
@@ -93,18 +98,23 @@
   color: var(--offsleek-dropdown-text);
   text-align: left;
   cursor: pointer;
-  transition: background-color 120ms ease, color 120ms ease;
 }
 
-.offsleek-dropdown-option:hover:not(:disabled):not([aria-selected='true']),
-.offsleek-dropdown-option[data-highlighted='true']:not([aria-selected='true']) {
+.offsleek-dropdown-option:hover:not(:disabled),
+.offsleek-dropdown-option[data-highlighted='true']:not(:disabled) {
   background-color: var(--offsleek-dropdown-hover-bg);
-  color: var(--offsleek-dropdown-text);
+  color: var(--offsleek-dropdown-hover-text);
 }
 
 .offsleek-dropdown-option[aria-selected='true'] {
   background-color: var(--offsleek-dropdown-selected-bg);
   color: var(--offsleek-dropdown-selected-text);
+}
+
+.offsleek-dropdown-option:hover:not(:disabled) .offsleek-dropdown-option-desc,
+.offsleek-dropdown-option[data-highlighted='true']:not(:disabled) .offsleek-dropdown-option-desc,
+.offsleek-dropdown-option[aria-selected='true'] .offsleek-dropdown-option-desc {
+  color: #d4d4d4;
 }
 
 /* Payment App Success Confirmation Animations (PhonePe / GPay / Paytm Style) */

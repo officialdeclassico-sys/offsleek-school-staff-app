@@ -24,7 +24,6 @@ import {
   AlertCircle,
   Image as ImageIcon,
 } from 'lucide-react';
-import StaffStatusBar from './components/StaffStatusBar';
 import StaffBottomNav from './components/StaffBottomNav';
 import OffsleekDropdown from './components/OffsleekDropdown';
 import {
@@ -52,11 +51,8 @@ import {
   AUTHENTICATED_TEST_STUDENT,
   IllustrativePortalMode,
   addIllustrativeTestTicketReply,
-  areIllustrativeTestFixturesEnabled,
   getIllustrativeTestTicketById,
   getIllustrativeTestTickets,
-  resetIllustrativeTestFixtures,
-  setIllustrativeTestFixturesEnabled,
 } from './services/illustrativeTestTickets';
 
 interface MyRequestsScreenProps {
@@ -88,23 +84,195 @@ const FILTER_TABS: readonly SupportFilterTab[] = [
   'Closed',
 ] as const;
 
-// Custom crisp SVG matching the Headset with Microphone icon in the approved design
-function HeadsetSupportIcon({ className = 'w-7 h-7' }: { className?: string }) {
+// Crisp B&W Support Agent & Laptop Banner Illustration matching reference
+function SupportBannerIllustration({ className = 'w-full h-auto' }: { className?: string }) {
   return (
     <svg
-      viewBox="0 0 24 24"
+      viewBox="0 0 180 140"
       fill="none"
-      stroke="currentColor"
-      strokeWidth="1.9"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      xmlns="http://www.w3.org/2000/svg"
       className={className}
+      aria-hidden="true"
     >
-      <path d="M4 13v-2a8 8 0 0 1 16 0v2" />
-      <rect x="3" y="12" width="3.5" height="6" rx="1.75" />
-      <rect x="17.5" y="12" width="3.5" height="6" rx="1.75" />
-      <path d="M19.5 18v1a2.5 2.5 0 0 1-2.5 2.5h-4" />
-      <circle cx="12" cy="21.5" r="1" fill="currentColor" />
+      {/* Speech Bubble (...) */}
+      <rect
+        x="48"
+        y="8"
+        width="38"
+        height="22"
+        rx="7"
+        fill="#ffffff"
+        stroke="#0f172a"
+        strokeWidth="2.2"
+      />
+      <path
+        d="M73 30 L78 36 L80 30"
+        fill="#ffffff"
+        stroke="#0f172a"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M72.5 29.8 H80.5" stroke="#ffffff" strokeWidth="2.6" />
+      <circle cx="59" cy="19" r="2" fill="#0f172a" />
+      <circle cx="67" cy="19" r="2" fill="#0f172a" />
+      <circle cx="75" cy="19" r="2" fill="#0f172a" />
+
+      {/* Radial expression lines */}
+      <path
+        d="M52 57 L64 64 M47 72 L61 72 M52 87 L64 80"
+        stroke="#0f172a"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+      />
+
+      {/* Ponytail / Hair Back */}
+      <path
+        d="M126 32 C142 30 150 42 146 58 C144 66 146 72 150 78 C140 82 130 78 128 70 Z"
+        fill="#0f172a"
+      />
+      {/* Top hair + bangs */}
+      <path
+        d="M91 45 C91 29 105 22 118 24 C129 25 135 35 134 48 C128 42 119 40 110 42 C102 44 96 47 91 49 Z"
+        fill="#0f172a"
+      />
+
+      {/* Neck & Collar / Shoulders */}
+      <path
+        d="M107 69 V79 C107 82 117 82 117 79 V69"
+        fill="#ffffff"
+        stroke="#0f172a"
+        strokeWidth="2.2"
+        strokeLinejoin="round"
+      />
+      {/* Shirt torso & sleeves */}
+      <path
+        d="M84 95 C86 83 96 78 106 78 H119 C130 78 140 84 143 96 L149 124 H78 Z"
+        fill="#ffffff"
+        stroke="#0f172a"
+        strokeWidth="2.2"
+        strokeLinejoin="round"
+      />
+      {/* Collar detail */}
+      <path
+        d="M104 78 L112 86 L120 78"
+        fill="none"
+        stroke="#0f172a"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Sleeve creases */}
+      <path
+        d="M92 98 L89 109 M135 97 L138 112"
+        stroke="#0f172a"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+
+      {/* Face */}
+      <path
+        d="M95 45 C95 60 102 70 112 70 C123 70 129 61 130 48 C126 42 118 40 109 42 C102 43 97 45 95 45 Z"
+        fill="#ffffff"
+        stroke="#0f172a"
+        strokeWidth="2.2"
+        strokeLinejoin="round"
+      />
+      {/* Eyes, eyebrows & smile */}
+      <circle cx="105" cy="52" r="1.8" fill="#0f172a" />
+      <circle cx="117" cy="52" r="1.8" fill="#0f172a" />
+      <path
+        d="M102 47.5 Q105 46 108 47.5 M114 47.5 Q117 46 120 47.5"
+        stroke="#0f172a"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+      <path d="M111 54 L110 57.5 H112" stroke="#0f172a" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M106.5 61.5 Q111.5 65.5 116.5 61"
+        stroke="#0f172a"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+
+      {/* Headset headband & earcup & mic */}
+      <path
+        d="M94 46 C94 31 105 24 117 25 C127 26 133 34 133 45"
+        stroke="#0f172a"
+        strokeWidth="3.2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M95 45 C95 32 106 25 117 26 C126 27 132 34 132 44"
+        stroke="#ffffff"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
+      <rect
+        x="126"
+        y="46"
+        width="8"
+        height="13"
+        rx="4"
+        fill="#0f172a"
+      />
+      <path
+        d="M128 57 C126 65 120 67 114 66.5"
+        stroke="#0f172a"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <ellipse cx="113" cy="66.5" rx="2.8" ry="1.9" fill="#0f172a" />
+
+      {/* Potted Plant on Left */}
+      <path
+        d="M28 111 C25 101 21 95 16 92 C23 92 28 97 30 107 Z"
+        fill="#ffffff"
+        stroke="#0f172a"
+        strokeWidth="1.9"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M32 111 C32 98 34 89 37 83 C39 90 38 100 34 111 Z"
+        fill="#ffffff"
+        stroke="#0f172a"
+        strokeWidth="1.9"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M35 111 C39 102 45 96 51 94 C47 101 42 107 37 111 Z"
+        fill="#ffffff"
+        stroke="#0f172a"
+        strokeWidth="1.9"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M23 111 H42 L39 131 H26 Z"
+        fill="#ffffff"
+        stroke="#0f172a"
+        strokeWidth="2.1"
+        strokeLinejoin="round"
+      />
+      <path d="M22 111 H43" stroke="#0f172a" strokeWidth="2.2" strokeLinecap="round" />
+
+      {/* Black Laptop */}
+      <path
+        d="M55 92 C55 90 56.5 89 58.5 89 H114.5 C116.5 89 118 90 118 92 L114 131 H59 Z"
+        fill="#0f172a"
+      />
+      <circle cx="86.5" cy="109.5" r="5" stroke="#ffffff" strokeWidth="2.1" />
+
+      {/* Right hand resting on desk */}
+      <path
+        d="M124 125 C124 122 128 121 132 121 H140 C143 121 144 123 144 126 V131 H124 Z"
+        fill="#ffffff"
+        stroke="#0f172a"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+
+      {/* Desk Ground Line */}
+      <path d="M12 131 H166" stroke="#0f172a" strokeWidth="2.2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -192,19 +360,12 @@ export default function MyRequestsScreen({
   const [viewMode, setViewMode] = useState<SupportViewMode>(initialView);
   const [previousViewMode, setPreviousViewMode] = useState<SupportViewMode>('LANDING');
 
-  // Student / Parent Mode & Illustrative Test Fixtures State
-  const [portalMode, setPortalMode] = useState<IllustrativePortalMode>(initialPortalMode);
-  const [testFixturesEnabled, setTestFixturesEnabled] = useState<boolean>(() =>
-    areIllustrativeTestFixturesEnabled()
-  );
+  const portalMode: IllustrativePortalMode = initialPortalMode;
 
-  // Load combined tickets (10 isolated illustrative test tickets when enabled + any staff-raised tickets)
+  // Load combined tickets (preserving both staff-raised tickets and existing illustrative fixture tickets)
   const loadCombinedTickets = React.useCallback(
-    (mode: IllustrativePortalMode, fixturesOn: boolean): SupportTicket[] => {
+    (mode: IllustrativePortalMode): SupportTicket[] => {
       const userTickets = getStaffSupportTickets(AUTHENTICATED_STAFF_CONTEXT);
-      if (!fixturesOn) {
-        return userTickets;
-      }
       const testTickets = getIllustrativeTestTickets(
         mode,
         AUTHENTICATED_TEST_STUDENT,
@@ -216,7 +377,7 @@ export default function MyRequestsScreen({
   );
 
   const [tickets, setTickets] = useState<SupportTicket[]>(() =>
-    loadCombinedTickets(initialPortalMode, areIllustrativeTestFixturesEnabled())
+    loadCombinedTickets(initialPortalMode)
   );
   const [activeFilter, setActiveFilter] = useState<SupportFilterTab>('All');
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
@@ -257,31 +418,12 @@ export default function MyRequestsScreen({
   };
 
   const refreshTickets = React.useCallback(
-    (nextMode: IllustrativePortalMode = portalMode, nextFixturesOn: boolean = testFixturesEnabled) => {
-      const latest = loadCombinedTickets(nextMode, nextFixturesOn);
+    (nextMode: IllustrativePortalMode = portalMode) => {
+      const latest = loadCombinedTickets(nextMode);
       setTickets(latest);
     },
-    [loadCombinedTickets, portalMode, testFixturesEnabled]
+    [loadCombinedTickets, portalMode]
   );
-
-  const handleSwitchPortalMode = (nextMode: IllustrativePortalMode) => {
-    setPortalMode(nextMode);
-    refreshTickets(nextMode, testFixturesEnabled);
-  };
-
-  const handleToggleTestFixtures = () => {
-    if (testFixturesEnabled) {
-      setIllustrativeTestFixturesEnabled(false);
-      setTestFixturesEnabled(false);
-      refreshTickets(portalMode, false);
-      showToast('Illustrative test tickets removed.');
-    } else {
-      resetIllustrativeTestFixtures();
-      setTestFixturesEnabled(true);
-      refreshTickets(portalMode, true);
-      showToast('10 illustrative test tickets restored.');
-    }
-  };
 
   const selectedTicket: SupportTicket | null = React.useMemo(() => {
     if (!selectedTicketId) return null;
@@ -671,14 +813,11 @@ export default function MyRequestsScreen({
         </div>
       )}
 
-      {/* Top Status Bar */}
-      <StaffStatusBar />
-
       {/* =================================================================== */}
       {/* SCREEN 1: MY REQUESTS — MAIN LANDING PAGE                           */}
       {/* =================================================================== */}
       {viewMode === 'LANDING' && (
-        <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-4 pt-1 pb-4 space-y-3.5 animate-in fade-in duration-150">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-4 space-y-3.5 animate-in fade-in duration-150">
           {/* 1. Header with Left-Facing Chevron */}
           <div className="flex items-center gap-2.5 min-w-0 pt-0.5">
             <button
@@ -687,30 +826,47 @@ export default function MyRequestsScreen({
               className="p-1 -ml-1 text-neutral-900 hover:text-black active:scale-95 transition cursor-pointer shrink-0 rounded-lg hover:bg-neutral-100"
               aria-label="Back to Home"
             >
-              <ChevronLeft className="w-5 h-5 text-neutral-900 stroke-[2.2]" />
+              <ChevronLeft className="w-5 h-5 text-black stroke-[2.2]" />
             </button>
             <div className="min-w-0 flex-1">
-              <h1 className="text-[22px] font-bold text-neutral-900 tracking-tight leading-tight">
+              <h1 className="text-[21px] sm:text-[22px] font-extrabold text-black tracking-tight leading-tight">
                 My Requests
               </h1>
-              <p className="text-[12px] text-[#6b7280] font-normal mt-0.5 leading-snug">
+              <p className="text-[12px] text-[#4b5563] font-normal mt-0.5 leading-snug">
                 Raise a request, track status and get support
               </p>
             </div>
           </div>
 
-          {/* 2. Introduction Card: How can we help you? */}
-          <div className="bg-[#f4f5f7] border border-[#e5e7eb] rounded-[20px] p-4 flex items-center gap-3.5">
-            <div className="w-13 h-13 rounded-full bg-[#e9ebef] flex items-center justify-center shrink-0 text-neutral-900">
-              <HeadsetSupportIcon className="w-7 h-7" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <h2 className="text-[15.5px] font-bold text-neutral-900 leading-snug">
-                How can we help you?
+          {/* 2. Support Banner Card: How can we help you? */}
+          <div className="relative overflow-hidden bg-white border border-[#e5e7eb] rounded-[20px] px-4 py-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] flex items-center justify-between gap-2">
+            {/* Subtle soft-grey curved background accents matching reference */}
+            <svg
+              viewBox="0 0 360 150"
+              preserveAspectRatio="none"
+              className="pointer-events-none absolute inset-0 w-full h-full"
+              aria-hidden="true"
+            >
+              <path
+                d="M0 128 C70 148 160 116 250 100 C305 90 340 62 360 28 V150 H0 Z"
+                fill="#f5f6f8"
+              />
+            </svg>
+
+            <div className="relative z-10 min-w-0 flex-1 pr-1">
+              <h2 className="text-[19px] sm:text-[20px] font-extrabold text-black leading-[1.15] tracking-tight">
+                How can we
+                <br />
+                help you?
               </h2>
-              <p className="text-[11.5px] text-[#6b7280] mt-1 leading-relaxed">
-                Choose a support option below to raise a request or get in touch.
+              <p className="text-[11.5px] text-[#4b5563] mt-1.5 leading-[1.4]">
+                Choose a support option below to raise a request.
               </p>
+              <div className="mt-3 w-7 h-[3px] rounded-full bg-black" />
+            </div>
+
+            <div className="relative z-10 w-[136px] sm:w-[148px] shrink-0 flex items-end justify-end -mr-1">
+              <SupportBannerIllustration className="w-full h-auto" />
             </div>
           </div>
 
@@ -720,24 +876,28 @@ export default function MyRequestsScreen({
             tabIndex={0}
             onClick={() => handleOpenRaiseRequest('SCHOOL', 'LANDING')}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') handleOpenRaiseRequest('SCHOOL', 'LANDING');
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleOpenRaiseRequest('SCHOOL', 'LANDING');
+              }
             }}
-            className="bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-[20px] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.02)] flex items-center justify-between gap-3.5 cursor-pointer transition active:scale-[0.99]"
+            className="bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-[20px] px-4 py-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] flex items-center justify-between gap-3 cursor-pointer transition active:scale-[0.99]"
           >
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-13 h-13 rounded-2xl bg-[#f4f5f7] flex items-center justify-center shrink-0 text-neutral-900">
+            <div className="flex items-center gap-3.5 min-w-0 flex-1">
+              <div className="w-12 h-12 rounded-[14px] bg-[#f4f5f7] flex items-center justify-center shrink-0 text-black">
                 <SchoolSupportIcon className="w-6.5 h-6.5" />
               </div>
+              <div className="w-px self-stretch my-1 bg-[#eef0f3] shrink-0" aria-hidden="true" />
               <div className="min-w-0 flex-1">
-                <h3 className="text-[14.5px] font-bold text-neutral-900 leading-snug">
+                <h3 className="text-[15px] font-bold text-black leading-snug">
                   School Support
                 </h3>
-                <p className="text-[11.5px] text-[#6b7280] mt-1 leading-relaxed">
+                <p className="text-[11.5px] text-[#4b5563] mt-0.5 leading-[1.4]">
                   For workplace, attendance, payroll, documents and other school-related queries.
                 </p>
               </div>
             </div>
-            <ChevronRight className="w-4.5 h-4.5 text-neutral-800 stroke-[2] shrink-0" />
+            <ChevronRight className="w-4.5 h-4.5 text-black stroke-[2.2] shrink-0" />
           </div>
 
           {/* 4. OFFSLEEK Support Card */}
@@ -746,41 +906,63 @@ export default function MyRequestsScreen({
             tabIndex={0}
             onClick={() => handleOpenRaiseRequest('OFFSLEEK', 'LANDING')}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') handleOpenRaiseRequest('OFFSLEEK', 'LANDING');
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleOpenRaiseRequest('OFFSLEEK', 'LANDING');
+              }
             }}
-            className="bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-[20px] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.02)] flex items-center justify-between gap-3.5 cursor-pointer transition active:scale-[0.99]"
+            className="bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-[20px] px-4 py-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] flex items-center justify-between gap-3 cursor-pointer transition active:scale-[0.99]"
           >
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-13 h-13 rounded-2xl bg-[#f4f5f7] flex items-center justify-center shrink-0 text-neutral-900">
+            <div className="flex items-center gap-3.5 min-w-0 flex-1">
+              <div className="w-12 h-12 rounded-[14px] bg-[#f4f5f7] flex items-center justify-center shrink-0 text-black">
                 <OffsleekSupportIcon className="w-6.5 h-6.5" />
               </div>
+              <div className="w-px self-stretch my-1 bg-[#eef0f3] shrink-0" aria-hidden="true" />
               <div className="min-w-0 flex-1">
-                <h3 className="text-[14.5px] font-bold text-neutral-900 leading-snug">
+                <h3 className="text-[15px] font-bold text-black leading-snug">
                   OFFSLEEK Support
                 </h3>
-                <p className="text-[11.5px] text-[#6b7280] mt-1 leading-relaxed">
+                <p className="text-[11.5px] text-[#4b5563] mt-0.5 leading-[1.4]">
                   For app issues, login problems, technical support or feature-related queries.
                 </p>
               </div>
             </div>
-            <ChevronRight className="w-4.5 h-4.5 text-neutral-800 stroke-[2] shrink-0" />
+            <ChevronRight className="w-4.5 h-4.5 text-black stroke-[2.2] shrink-0" />
           </div>
 
           {/* 5. View All Requests Card */}
-          <div className="bg-[#f4f5f7] border border-[#e5e7eb] rounded-[20px] p-4 flex items-start gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-[#e9ebef] flex items-center justify-center shrink-0 text-neutral-900">
-              <FileText className="w-5.5 h-5.5 stroke-[1.9]" />
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => {
+              refreshTickets();
+              setActiveFilter('All');
+              setViewMode('LIST');
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                refreshTickets();
+                setActiveFilter('All');
+                setViewMode('LIST');
+              }
+            }}
+            className="bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-[20px] px-4 py-4 shadow-[0_1px_3px_rgba(0,0,0,0.02)] flex items-start gap-3.5 cursor-pointer transition active:scale-[0.99]"
+          >
+            <div className="w-12 h-12 rounded-[14px] bg-[#f4f5f7] flex items-center justify-center shrink-0 text-black mt-0.5">
+              <FileText className="w-6 h-6 stroke-[2]" />
             </div>
             <div className="min-w-0 flex-1">
-              <h3 className="text-[14.5px] font-bold text-neutral-900 leading-snug">
+              <h3 className="text-[15px] font-bold text-black leading-snug">
                 View All Requests
               </h3>
-              <p className="text-[11.5px] text-[#6b7280] mt-0.5 leading-relaxed">
+              <p className="text-[11.5px] text-[#4b5563] mt-0.5 leading-[1.4]">
                 Track the status and updates of your submitted requests.
               </p>
               <button
                 type="button"
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   refreshTickets();
                   setActiveFilter('All');
                   setViewMode('LIST');
@@ -788,7 +970,7 @@ export default function MyRequestsScreen({
                 className="mt-3 bg-black hover:bg-neutral-800 active:scale-[0.98] text-white text-[12px] font-semibold px-5 py-2.5 rounded-full inline-flex items-center justify-center gap-2 transition cursor-pointer shadow-xs"
               >
                 <span>Go to My Requests</span>
-                <ArrowRight className="w-3.5 h-3.5 stroke-[2.2]" />
+                <ArrowRight className="w-4 h-4 stroke-[2.2]" />
               </button>
             </div>
           </div>
@@ -804,7 +986,7 @@ export default function MyRequestsScreen({
           noValidate
           className="flex-1 flex flex-col justify-between overflow-hidden animate-in fade-in duration-150"
         >
-          <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-4 pt-1 pb-4 space-y-3.5">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-4 space-y-3.5">
             {/* Header */}
             <div className="flex items-start gap-2 min-w-0 pt-0.5">
               <button
@@ -1045,9 +1227,9 @@ export default function MyRequestsScreen({
       {/* SCREEN 4 & 10: MY REQUESTS — COMPLETE LIST & EMPTY STATE            */}
       {/* =================================================================== */}
       {viewMode === 'LIST' && (
-        <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-4 pt-1 pb-4 space-y-3 flex flex-col animate-in fade-in duration-150">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden no-scrollbar px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-4 space-y-3 flex flex-col animate-in fade-in duration-150">
           {/* Header matching Modern_Request_Tracking_Mobile_UI_fcae2233.png */}
-          <div className="flex items-start justify-between gap-2 min-w-0 pt-0.5">
+          <div className="shrink-0 flex items-start justify-between gap-2 min-w-0 pt-0.5">
             <div className="flex items-start gap-2 min-w-0">
               <button
                 type="button"
@@ -1068,66 +1250,33 @@ export default function MyRequestsScreen({
             </div>
           </div>
 
-          {/* Student / Parent Test-Mode Verification Bar (Clearly marks TEST DATA & allows instant cleanup) */}
-          <div className="bg-[#f8fafc] border border-[#e2e8f0] rounded-2xl px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-[11px]">
-            <div className="flex items-center gap-1.5">
-              <span className="px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 font-bold text-[10px] tracking-wide">
-                TEST DATA
-              </span>
-              <div className="inline-flex rounded-lg bg-white border border-[#e2e8f0] p-0.5">
-                <button
-                  type="button"
-                  onClick={() => handleSwitchPortalMode('STUDENT')}
-                  className={`px-2 py-0.5 rounded-md font-semibold text-[10.5px] cursor-pointer transition ${
-                    portalMode === 'STUDENT'
-                      ? 'bg-neutral-900 text-white'
-                      : 'text-neutral-600 hover:text-neutral-900'
-                  }`}
-                >
-                  Student Mode
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSwitchPortalMode('PARENT')}
-                  className={`px-2 py-0.5 rounded-md font-semibold text-[10.5px] cursor-pointer transition ${
-                    portalMode === 'PARENT'
-                      ? 'bg-neutral-900 text-white'
-                      : 'text-neutral-600 hover:text-neutral-900'
-                  }`}
-                >
-                  Parent Mode
-                </button>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleToggleTestFixtures}
-              className="text-[10.5px] font-semibold text-neutral-700 hover:text-black underline cursor-pointer"
-            >
-              {testFixturesEnabled ? 'Remove Test Fixtures' : 'Load 10 Test Tickets'}
-            </button>
-          </div>
-
           {/* 6 Horizontal Filter Chips: All, School, OFFSLEEK, Open, Pending, Closed */}
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-            {FILTER_TABS.map((tab) => {
-              const isActive = activeFilter === tab;
-              return (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setActiveFilter(tab)}
-                  className={`px-3.5 py-1.5 rounded-full text-[11.5px] border transition cursor-pointer shrink-0 ${
-                    isActive
-                      ? 'bg-black text-white border-black font-semibold'
-                      : 'bg-white text-neutral-700 border-[#e5e7eb] hover:border-neutral-300 font-medium'
-                  }`}
-                >
-                  {tab}
-                </button>
-              );
-            })}
+          <div
+            role="tablist"
+            aria-label="Filter requests"
+            className="shrink-0 -mx-4 px-4 overflow-x-auto overflow-y-hidden no-scrollbar touch-pan-x overscroll-x-contain py-1"
+          >
+            <div className="inline-flex items-center gap-1.5 min-w-max pr-4">
+              {FILTER_TABS.map((tab) => {
+                const isActive = activeFilter === tab;
+                return (
+                  <button
+                    key={tab}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    onClick={() => setActiveFilter(tab)}
+                    className={`px-3.5 py-1.5 rounded-full text-[11.5px] leading-tight border whitespace-nowrap transition cursor-pointer shrink-0 ${
+                      isActive
+                        ? 'bg-black text-white border-black font-semibold'
+                        : 'bg-white text-neutral-700 border-[#e5e7eb] hover:border-neutral-300 font-medium'
+                    }`}
+                  >
+                    {tab}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Empty State when ZERO requests are present */}
@@ -1149,15 +1298,6 @@ export default function MyRequestsScreen({
                   <Plus className="w-4 h-4 stroke-[2.5]" />
                   <span>Raise a Request</span>
                 </button>
-                {!testFixturesEnabled && (
-                  <button
-                    type="button"
-                    onClick={handleToggleTestFixtures}
-                    className="text-[11.5px] font-semibold text-[#2563eb] hover:underline cursor-pointer mt-1"
-                  >
-                    Restore 10 Illustrative Test Tickets
-                  </button>
-                )}
               </div>
             </div>
           ) : filteredTickets.length === 0 ? (
@@ -1190,7 +1330,7 @@ export default function MyRequestsScreen({
             </div>
           ) : (
             /* Request Cards List matching Modern_Request_Tracking_Mobile_UI_fcae2233.png */
-            <div className="space-y-2.5 pb-2">
+            <div className="shrink-0 space-y-2.5 pb-2">
               {filteredTickets.map((ticket) => (
                 <div
                   key={ticket.id}
@@ -1257,7 +1397,7 @@ export default function MyRequestsScreen({
       {/* =================================================================== */}
       {viewMode === 'DETAILS' && selectedTicket && (
         <div className="flex-1 flex flex-col justify-between overflow-hidden animate-in fade-in duration-150">
-          <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-4 pt-1 pb-4 space-y-3">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-4 space-y-3">
             {/* Header matching Modern_Request_Tracking_Mobile_UI_fcae2233.png */}
             <div className="flex items-start gap-2 min-w-0 pt-0.5">
               <button
@@ -1299,13 +1439,8 @@ export default function MyRequestsScreen({
                     <h2 className="text-[14.5px] font-bold text-neutral-900 truncate leading-snug">
                       {selectedTicket.subject}
                     </h2>
-                    <div className="text-[12px] text-[#4b5563] mt-0.5 flex items-center gap-1.5">
+                    <div className="text-[12px] text-[#4b5563] mt-0.5">
                       <span>{selectedTicket.displayId}</span>
-                      {selectedTicket.isTestData && (
-                        <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 text-[9.5px] font-bold">
-                          TEST DATA
-                        </span>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -1606,7 +1741,7 @@ export default function MyRequestsScreen({
       {viewMode === 'CONVERSATION' && selectedTicket && (
         <div className="flex-1 flex flex-col justify-between overflow-hidden animate-in fade-in duration-150">
           {/* Header */}
-          <div className="px-4 pt-1.5 pb-2.5 border-b border-[#f0f2f5] flex items-start gap-2 min-w-0">
+          <div className="px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2.5 border-b border-[#f0f2f5] flex items-start gap-2 min-w-0">
             <button
               type="button"
               onClick={() => setViewMode('DETAILS')}
@@ -1805,7 +1940,7 @@ export default function MyRequestsScreen({
           onSubmit={handleSubmitFeedback}
           className="flex-1 flex flex-col justify-between overflow-hidden animate-in fade-in duration-150"
         >
-          <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-4 pt-1 pb-4 space-y-4">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-4 space-y-4">
             {/* Header */}
             <div className="flex items-start gap-2 min-w-0 pt-0.5">
               <button
@@ -1924,7 +2059,7 @@ export default function MyRequestsScreen({
       {/* SCREEN 9: FEEDBACK SUBMITTED CONFIRMATION SCREEN                    */}
       {/* =================================================================== */}
       {viewMode === 'FEEDBACK_SUBMITTED' && (
-        <div className="flex-1 flex flex-col justify-between px-4 pt-1 pb-6 animate-in fade-in duration-150">
+        <div className="flex-1 flex flex-col justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-6 animate-in fade-in duration-150">
           {/* Top-left Chevron */}
           <div className="pt-0.5">
             <button

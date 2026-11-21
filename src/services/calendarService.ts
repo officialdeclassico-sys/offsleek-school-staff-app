@@ -47,7 +47,8 @@ export interface CalendarEventDetail {
   sectionIds?: string[];
   audience?: CalendarAudience[];
   status?: 'published' | 'draft' | 'cancelled';
-  source: 'firestore' | 'assessment-record';
+  source: 'firestore' | 'assessment-record' | 'sample';
+  isSample?: boolean;
   createdBy?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -323,6 +324,257 @@ export function getLocalAssessmentCalendarEvents(
   return filterCalendarEventsForStaff(mapped, staff);
 }
 
+interface SampleCalendarEventSpec {
+  id: string;
+  title: string;
+  category: CalendarCategory;
+  dateKey: string;
+  endDateKey?: string;
+  time: string;
+  startTime?: string;
+  endTime?: string;
+  location: string;
+  description: string;
+  classesInvolved: string;
+  syllabus?: string;
+  itemsToBring?: string;
+  targetClasses?: string[];
+}
+
+const SAMPLE_CALENDAR_EVENT_SPECS: SampleCalendarEventSpec[] = [
+  {
+    id: 'sample-2026-11-09-diwali-holiday',
+    title: 'Diwali Break',
+    category: 'Holiday',
+    dateKey: '2026-11-09',
+    time: 'All Day',
+    location: 'Greenwood International School',
+    description: 'School closed for Diwali festive holiday.',
+    classesInvolved: 'All Classes',
+    targetClasses: ['All Classes'],
+  },
+  {
+    id: 'sample-2026-11-21-childrens-day',
+    title: "Children's Day Celebration",
+    category: 'Event',
+    dateKey: '2026-11-21',
+    time: '09:00 AM – 12:30 PM',
+    startTime: '09:00 AM',
+    endTime: '12:30 PM',
+    location: 'School Auditorium & Classrooms',
+    description: 'Special assembly, cultural performances, and student celebration activities.',
+    classesInvolved: 'All Classes',
+    targetClasses: ['All Classes'],
+  },
+  {
+    id: 'sample-2026-11-23-math-unit-test',
+    title: 'Mathematics Unit Test',
+    category: 'Exam',
+    dateKey: '2026-11-23',
+    time: '09:00 AM – 10:30 AM',
+    startTime: '09:00 AM',
+    endTime: '10:30 AM',
+    location: 'Assigned Classrooms',
+    description: 'Scheduled Mathematics unit test assessment across primary grades.',
+    classesInvolved: 'Grade 5 - A, Grade 5 - B, Grade 6 - A',
+    syllabus: 'Fractions, Decimals, and Geometry Basics',
+    itemsToBring: 'Geometry box, blue/black pens, and school ID card',
+    targetClasses: ['Grade 5 - A', 'Grade 5 - B', 'Grade 6 - A'],
+  },
+  {
+    id: 'sample-2026-11-24-science-unit-test',
+    title: 'Science Unit Test',
+    category: 'Exam',
+    dateKey: '2026-11-24',
+    time: '09:00 AM – 10:30 AM',
+    startTime: '09:00 AM',
+    endTime: '10:30 AM',
+    location: 'Assigned Classrooms',
+    description: 'Scheduled Science unit test covering Term 2 core chapters.',
+    classesInvolved: 'Grade 5 - A, Grade 5 - B, Grade 6 - A',
+    syllabus: 'Human Body Systems, States of Matter, and Simple Machines',
+    itemsToBring: 'Blue/black pens, pencil, and ruler',
+    targetClasses: ['Grade 5 - A', 'Grade 5 - B', 'Grade 6 - A'],
+  },
+  {
+    id: 'sample-2026-11-25-inter-house-sports',
+    title: 'Inter-House Sports Competition',
+    category: 'Activity',
+    dateKey: '2026-11-25',
+    time: '08:30 AM – 01:00 PM',
+    startTime: '08:30 AM',
+    endTime: '01:00 PM',
+    location: 'Main Sports Ground',
+    description: 'Inter-house relay races, badminton matches, and athletic events.',
+    classesInvolved: 'Grade 5 - A, Grade 5 - B, Grade 6 - A',
+    itemsToBring: 'House sports uniform, running shoes, and water bottle',
+    targetClasses: ['Grade 5 - A', 'Grade 5 - B', 'Grade 6 - A'],
+  },
+  {
+    id: 'sample-2026-11-26-science-exhibition',
+    title: 'Science Exhibition',
+    category: 'Event',
+    dateKey: '2026-11-26',
+    time: '10:00 AM – 03:00 PM',
+    startTime: '10:00 AM',
+    endTime: '03:00 PM',
+    location: 'School Science Hall',
+    description: 'Student STEM working models, robotics demos, and science project displays.',
+    classesInvolved: 'All Classes',
+    targetClasses: ['All Classes'],
+  },
+  {
+    id: 'sample-2026-11-27-ptm',
+    title: 'Parent-Teacher Meeting',
+    category: 'Meeting',
+    dateKey: '2026-11-27',
+    time: '09:00 AM – 01:30 PM',
+    startTime: '09:00 AM',
+    endTime: '01:30 PM',
+    location: 'Respective Classrooms',
+    description: 'One-on-one academic progress and attendance review with parents.',
+    classesInvolved: 'Grade 5 - A, Grade 5 - B, Grade 6 - A',
+    targetClasses: ['Grade 5 - A', 'Grade 5 - B', 'Grade 6 - A'],
+  },
+  {
+    id: 'sample-2026-11-28-foundation-day-holiday',
+    title: 'Foundation Day Holiday',
+    category: 'Holiday',
+    dateKey: '2026-11-28',
+    time: 'All Day',
+    location: 'Greenwood International School',
+    description: 'School holiday on account of Annual Foundation Day.',
+    classesInvolved: 'All Classes',
+    targetClasses: ['All Classes'],
+  },
+  {
+    id: 'sample-2026-11-30-cultural-programme',
+    title: 'School Cultural Programme',
+    category: 'Event',
+    dateKey: '2026-11-30',
+    time: '10:30 AM – 01:30 PM',
+    startTime: '10:30 AM',
+    endTime: '01:30 PM',
+    location: 'Main Auditorium',
+    description: 'Music, classical dance, drama showcase, and student talent awards.',
+    classesInvolved: 'All Classes',
+    targetClasses: ['All Classes'],
+  },
+  {
+    id: 'sample-2026-12-12-annual-sports-day',
+    title: 'Annual Sports Day',
+    category: 'Activity',
+    dateKey: '2026-12-12',
+    time: '08:00 AM – 02:30 PM',
+    startTime: '08:00 AM',
+    endTime: '02:30 PM',
+    location: 'Main Athletic Ground',
+    description: 'Annual march past, track & field finals, and house trophy ceremony.',
+    classesInvolved: 'All Classes',
+    targetClasses: ['All Classes'],
+  },
+  {
+    id: 'sample-2026-12-23-christmas-celebration',
+    title: 'Christmas Celebration',
+    category: 'Event',
+    dateKey: '2026-12-23',
+    time: '09:30 AM – 12:30 PM',
+    startTime: '09:30 AM',
+    endTime: '12:30 PM',
+    location: 'School Auditorium',
+    description: 'Festive school assembly, choir performance, and holiday class gathering.',
+    classesInvolved: 'All Classes',
+    targetClasses: ['All Classes'],
+  },
+  {
+    id: 'sample-2026-12-26-winter-vacation',
+    title: 'Winter Vacation',
+    category: 'Holiday',
+    dateKey: '2026-12-26',
+    endDateKey: '2027-01-03',
+    time: 'All Day',
+    location: 'Greenwood International School',
+    description: 'School closed for annual winter break. Classes resume on 4 Jan 2027.',
+    classesInvolved: 'All Classes',
+    targetClasses: ['All Classes'],
+  },
+];
+
+/**
+ * Builds clearly identified sample school calendar events using the canonical
+ * CalendarEventDetail data model so both Upcoming Events and School Calendar share one source.
+ */
+export function getSampleCalendarEvents(
+  staff: StaffIdentityContext
+): CalendarEventDetail[] {
+  const mapped: CalendarEventDetail[] = [];
+
+  for (const spec of SAMPLE_CALENDAR_EVENT_SPECS) {
+    const parsedDate = parseEventDateToParts(spec.dateKey);
+    if (!parsedDate) continue;
+
+    mapped.push({
+      id: spec.id,
+      title: spec.title,
+      category: spec.category,
+      dateStr: parsedDate.dateStr,
+      dateKey: parsedDate.dateKey,
+      endDateKey: spec.endDateKey,
+      dayNumber: parsedDate.dayNumber,
+      monthIndex: parsedDate.monthIndex,
+      year: parsedDate.year,
+      time: spec.time,
+      startTime: spec.startTime,
+      endTime: spec.endTime,
+      location: spec.location,
+      description: spec.description,
+      classesInvolved: spec.classesInvolved,
+      syllabus: spec.syllabus,
+      itemsToBring: spec.itemsToBring,
+      schoolId: staff.schoolId,
+      academicYear: staff.academicYear,
+      targetClasses: spec.targetClasses,
+      audience: ['STAFF', 'ALL'],
+      source: 'sample',
+      isSample: true,
+    });
+  }
+
+  return filterCalendarEventsForStaff(mapped, staff);
+}
+
+/**
+ * Merges live Firestore events, local published assessment events, and sample events
+ * without duplicating records across repeated loads.
+ */
+function mergeCalendarEventsWithSampleFallback(
+  primaryEvents: CalendarEventDetail[],
+  staff: StaffIdentityContext
+): CalendarEventDetail[] {
+  const seenIds = new Set<string>();
+  const seenSignatures = new Set<string>();
+  const result: CalendarEventDetail[] = [];
+
+  const addUnique = (ev: CalendarEventDetail) => {
+    const signature = `${ev.dateKey}::${ev.title.trim().toLowerCase()}`;
+    if (seenIds.has(ev.id) || seenSignatures.has(signature)) return;
+    seenIds.add(ev.id);
+    seenSignatures.add(signature);
+    result.push(ev);
+  };
+
+  for (const ev of primaryEvents) {
+    addUnique(ev);
+  }
+
+  const sampleEvents = getSampleCalendarEvents(staff);
+  for (const sampleEv of sampleEvents) {
+    addUnique(sampleEv);
+  }
+
+  return filterCalendarEventsForStaff(result, staff);
+}
+
 /**
  * Maps a Firestore calendarEvents document cleanly to CalendarEventDetail.
  */
@@ -435,10 +687,13 @@ export function subscribeToStaffCalendarEvents(
     status: CalendarSubscriptionStatus
   ) => void
 ): () => void {
-  const localExams = getLocalAssessmentCalendarEvents(staff);
+  const localAndSampleEvents = mergeCalendarEventsWithSampleFallback(
+    getLocalAssessmentCalendarEvents(staff),
+    staff
+  );
 
   if (!auth.currentUser) {
-    onUpdate(localExams, {
+    onUpdate(localAndSampleEvents, {
       loading: false,
       isLiveFirestore: false,
       requiresFirebaseAuth: true,
@@ -447,7 +702,7 @@ export function subscribeToStaffCalendarEvents(
     return () => {};
   }
 
-  onUpdate(localExams, {
+  onUpdate(localAndSampleEvents, {
     loading: true,
     isLiveFirestore: false,
     requiresFirebaseAuth: false,
@@ -474,7 +729,7 @@ export function subscribeToStaffCalendarEvents(
         if (mapped) firestoreEvents.push(mapped);
       });
 
-      const merged = filterCalendarEventsForStaff(
+      const merged = mergeCalendarEventsWithSampleFallback(
         [...firestoreEvents, ...getLocalAssessmentCalendarEvents(staff)],
         staff
       );
@@ -489,14 +744,20 @@ export function subscribeToStaffCalendarEvents(
     (err) => {
       const isPermissionError =
         err && typeof err === 'object' && 'code' in err && err.code === 'permission-denied';
-      onUpdate(getLocalAssessmentCalendarEvents(staff), {
-        loading: false,
-        isLiveFirestore: false,
-        requiresFirebaseAuth: isPermissionError,
-        error: isPermissionError
-          ? 'You do not have permission to read school calendar events from Firestore.'
-          : err.message || 'Unable to sync school calendar events.',
-      });
+      onUpdate(
+        mergeCalendarEventsWithSampleFallback(
+          getLocalAssessmentCalendarEvents(staff),
+          staff
+        ),
+        {
+          loading: false,
+          isLiveFirestore: false,
+          requiresFirebaseAuth: isPermissionError,
+          error: isPermissionError
+            ? 'You do not have permission to read school calendar events from Firestore.'
+            : err.message || 'Unable to sync school calendar events.',
+        }
+      );
     }
   );
 

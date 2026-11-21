@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { Home, Calendar, Megaphone, FileText } from 'lucide-react';
+import { Home, Calendar, Megaphone } from 'lucide-react';
 import { getAssetUrl } from '../utils/assetUtils';
 
 export type StaffNavTab =
@@ -30,21 +30,14 @@ export default function StaffBottomNav({
   onNavigateHome,
   onNavigateAttendance,
   onNavigateAnnouncements,
-  onNavigateMyRequests,
   onNavigateProfile,
 }: StaffBottomNavProps) {
-  const showMyRequestsTab = activeTab === 'My Requests';
-
   return (
     <nav
       aria-label="Staff Bottom Navigation"
       className="shrink-0 w-full bg-white border-t border-[#e5e7eb] px-2 sm:px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] z-30 select-none"
     >
-      <div
-        className={`grid ${
-          showMyRequestsTab ? 'grid-cols-5' : 'grid-cols-4'
-        } items-stretch w-full`}
-      >
+      <div className="grid grid-cols-4 items-stretch w-full">
         {/* Tab 1: Home */}
         <button
           type="button"
@@ -123,24 +116,7 @@ export default function StaffBottomNav({
           </span>
         </button>
 
-        {/* Tab 4 (when My Requests section is open): My Requests */}
-        {showMyRequestsTab && (
-          <button
-            type="button"
-            onClick={onNavigateMyRequests}
-            aria-current="page"
-            className="w-full min-w-0 flex flex-col items-center justify-center cursor-pointer group py-1 px-1 active:scale-95 transition-transform duration-150"
-          >
-            <div className="h-6 w-6 flex items-center justify-center shrink-0 transition">
-              <FileText className="w-[20px] h-[20px] sm:w-[22px] sm:h-[22px] text-black stroke-[2.25] transition-colors" />
-            </div>
-            <span className="w-full text-center text-[10.5px] sm:text-[11px] tracking-[-0.01em] mt-1 leading-tight whitespace-nowrap font-bold text-black transition-colors">
-              My Requests
-            </span>
-          </button>
-        )}
-
-        {/* Final Tab: Profile */}
+        {/* Tab 4: Profile */}
         <button
           type="button"
           onClick={onNavigateProfile}

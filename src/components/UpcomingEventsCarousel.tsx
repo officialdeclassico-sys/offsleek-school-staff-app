@@ -14,8 +14,8 @@ interface UpcomingEventsCarouselProps {
   isOverlayOpen?: boolean;
 }
 
-const AUTO_SCROLL_SPEED_PX_PER_SEC = 35;
-const RESUME_DELAY_MS = 2500;
+const AUTO_SCROLL_SPEED_PX_PER_SEC = 36;
+const RESUME_DELAY_MS = 1400;
 
 export default function UpcomingEventsCarousel({
   events,
@@ -28,7 +28,7 @@ export default function UpcomingEventsCarousel({
   const copy0StartRef = useRef<HTMLButtonElement | null>(null);
   const copy1StartRef = useRef<HTMLButtonElement | null>(null);
 
-  const shouldLoop = events.length >= 3;
+  const shouldLoop = events.length >= 2;
 
   // Refs controlling animation without per-frame React state updates
   const strideRef = useRef<number>(0);
@@ -36,7 +36,11 @@ export default function UpcomingEventsCarousel({
   const rafIdRef = useRef<number | null>(null);
   const lastFrameTsRef = useRef<number | null>(null);
   const resumeTimerRef = useRef<number | null>(null);
-  const isProgrammaticScrollRef = useRef<boolean>(false);
+
+  // Track last programmatic scrollLeft write so async browser scroll events
+  // are never mistaken for manual user scrolling.
+  const lastProgrammaticScrollLeftRef = useRef<number>(0);
+  const lastProgrammaticScrollTsRef = useRef<number>(0);
 
   // Pause flags
   const isHoveredRef = useRef<boolean>(false);
@@ -57,6 +61,13 @@ export default function UpcomingEventsCarousel({
   const didDragRef = useRef<boolean>(false);
   const suppressNextClickRef = useRef<boolean>(false);
 
+  const writeProgrammaticScrollLeft = useCallback((viewport: HTMLDivElement, nextLeft: number) => {
+    viewport.scrollLeft = nextLeft;
+    lastProgrammaticScrollLeftRef.current = viewport.scrollLeft;
+    lastProgrammaticScrollTsRef.current =
+      typeof performance !== 'undefined' ? performance.now() : Date.now();
+  }, []);
+
   const clearResumeTimer = useCallback(() => {
     if (resumeTimerRef.current !== null) {
       window.clearTimeout(resumeTimerRef.current);
@@ -69,13 +80,16 @@ export default function UpcomingEventsCarousel({
     clearResumeTimer();
   }, [clearResumeTimer]);
 
-  const scheduleResumeAfterInteraction = useCallback(() => {
-    clearResumeTimer();
-    resumeTimerRef.current = window.setTimeout(() => {
-      isManualCooldownRef.current = false;
-      resumeTimerRef.current = null;
-    }, RESUME_DELAY_MS);
-  }, [clearResumeTimer]);
+  const scheduleResumeAfterInteraction = useCallback(
+    (delayMs: number = RESUME_DELAY_MS) => {
+      clearResumeTimer();
+      resumeTimerRef.current = window.setTimeout(() => {
+        isManualCooldownRef.current = false;
+        resumeTimerRef.current = null;
+      }, delayMs);
+    },
+    [clearResumeTimer]
+  );
 
   const measureStride = useCallback(() => {
     if (!shouldLoop || !viewportRef.current) {
@@ -93,16 +107,18 @@ export default function UpcomingEventsCarousel({
     if (measured > 0) {
       const prevStride = strideRef.current;
       strideRef.current = measured;
-      if (prevStride === 0 || viewportRef.current.scrollLeft < measured * 0.5) {
-        isProgrammaticScrollRef.current = true;
-        viewportRef.current.scrollLeft = measured;
+      if (prevStride === 0) {
         scrollPosRef.current = measured;
-        requestAnimationFrame(() => {
-          isProgrammaticScrollRef.current = false;
-        });
+        writeProgrammaticScrollLeft(viewportRef.current, measured);
+      } else if (prevStride !== measured) {
+        const offsetWithinCopy =
+          (((scrollPosRef.current - prevStride) % prevStride) + prevStride) % prevStride;
+        const normalizedPos = measured + offsetWithinCopy;
+        scrollPosRef.current = normalizedPos;
+        writeProgrammaticScrollLeft(viewportRef.current, normalizedPos);
       }
     }
-  }, [shouldLoop]);
+  }, [shouldLoop, writeProgrammaticScrollLeft]);
 
   // Keep overlay prop synced
   useEffect(() => {
@@ -113,15 +129,11 @@ export default function UpcomingEventsCarousel({
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const checkReducedMotion = () => {
-      prefersReducedMotionRef.current = window.matchMedia(
-        '(prefers-reduced-motion: reduce)'
-      ).matches;
-    };
-    checkReducedMotion();
     const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    prefersReducedMotionRef.current = motionQuery.matches;
     const onMotionChange = (e: MediaQueryListEvent) => {
       prefersReducedMotionRef.current = e.matches;
+      lastFrameTsRef.current = null;
     };
     motionQuery.addEventListener?.('change', onMotionChange);
 
@@ -165,9 +177,12 @@ export default function UpcomingEventsCarousel({
         const entry = entries[0];
         if (entry) {
           isInViewportRef.current = entry.isIntersecting;
+          if (!entry.isIntersecting) {
+            lastFrameTsRef.current = null;
+          }
         }
       },
-      { threshold: 0.05 }
+      { threshold: 0.01 }
     );
     intersectionObserver.observe(viewport);
 
@@ -186,13 +201,19 @@ export default function UpcomingEventsCarousel({
         didDragRef.current = true;
       }
       if (didDragRef.current) {
-        const nextScroll = dragStartScrollRef.current - dx;
-        isProgrammaticScrollRef.current = true;
-        viewportRef.current.scrollLeft = nextScroll;
+        let nextScroll = dragStartScrollRef.current - dx;
+        const stride = strideRef.current;
+        if (shouldLoop && stride > 0) {
+          if (nextScroll >= stride * 2) {
+            nextScroll -= stride;
+            dragStartScrollRef.current -= stride;
+          } else if (nextScroll < stride * 0.5) {
+            nextScroll += stride;
+            dragStartScrollRef.current += stride;
+          }
+        }
+        writeProgrammaticScrollLeft(viewportRef.current, nextScroll);
         scrollPosRef.current = viewportRef.current.scrollLeft;
-        requestAnimationFrame(() => {
-          isProgrammaticScrollRef.current = false;
-        });
       }
     };
 
@@ -204,9 +225,11 @@ export default function UpcomingEventsCarousel({
         window.setTimeout(() => {
           suppressNextClickRef.current = false;
         }, 120);
+        scheduleResumeAfterInteraction();
+      } else {
+        isManualCooldownRef.current = false;
       }
       didDragRef.current = false;
-      scheduleResumeAfterInteraction();
     };
 
     window.addEventListener('mousemove', handleWindowMouseMove);
@@ -215,9 +238,9 @@ export default function UpcomingEventsCarousel({
       window.removeEventListener('mousemove', handleWindowMouseMove);
       window.removeEventListener('mouseup', handleWindowMouseUp);
     };
-  }, [scheduleResumeAfterInteraction]);
+  }, [shouldLoop, scheduleResumeAfterInteraction, writeProgrammaticScrollLeft]);
 
-  // Main requestAnimationFrame loop (single loop, zero state mutations per frame)
+  // Main requestAnimationFrame loop (single loop, zero React state updates per frame)
   useEffect(() => {
     if (!shouldLoop) return;
 
@@ -249,9 +272,7 @@ export default function UpcomingEventsCarousel({
             scrollPosRef.current += stride;
           }
 
-          isProgrammaticScrollRef.current = true;
-          viewport.scrollLeft = scrollPosRef.current;
-          isProgrammaticScrollRef.current = false;
+          writeProgrammaticScrollLeft(viewport, scrollPosRef.current);
         }
         lastFrameTsRef.current = ts;
       } else {
@@ -270,25 +291,30 @@ export default function UpcomingEventsCarousel({
       }
       clearResumeTimer();
     };
-  }, [shouldLoop, events, clearResumeTimer]);
+  }, [shouldLoop, events, clearResumeTimer, writeProgrammaticScrollLeft]);
 
   const handleViewportScroll = () => {
     const viewport = viewportRef.current;
-    if (!viewport || isProgrammaticScrollRef.current) return;
+    if (!viewport) return;
+
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const isRecentProgrammaticWrite =
+      now - lastProgrammaticScrollTsRef.current < 120 &&
+      Math.abs(viewport.scrollLeft - lastProgrammaticScrollLeftRef.current) <= 2;
+
+    if (isRecentProgrammaticWrite) {
+      return;
+    }
 
     let current = viewport.scrollLeft;
     const stride = strideRef.current;
     if (shouldLoop && stride > 0) {
       if (current >= stride * 2) {
         current -= stride;
-        isProgrammaticScrollRef.current = true;
-        viewport.scrollLeft = current;
-        isProgrammaticScrollRef.current = false;
+        writeProgrammaticScrollLeft(viewport, current);
       } else if (current <= stride * 0.25) {
         current += stride;
-        isProgrammaticScrollRef.current = true;
-        viewport.scrollLeft = current;
-        isProgrammaticScrollRef.current = false;
+        writeProgrammaticScrollLeft(viewport, current);
       }
     }
     scrollPosRef.current = current;
@@ -314,9 +340,6 @@ export default function UpcomingEventsCarousel({
       }}
       onMouseLeave={() => {
         isHoveredRef.current = false;
-        if (!pointerDownRef.current) {
-          scheduleResumeAfterInteraction();
-        }
       }}
       onMouseDown={(e) => {
         if (e.button !== 0 || !viewportRef.current) return;
@@ -353,13 +376,13 @@ export default function UpcomingEventsCarousel({
       onBlurCapture={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
           isFocusInsideRef.current = false;
-          scheduleResumeAfterInteraction();
+          scheduleResumeAfterInteraction(400);
         }
       }}
-      className="w-full overflow-x-auto no-scrollbar overscroll-x-contain select-none"
+      className="w-full max-w-full overflow-x-auto no-scrollbar overscroll-x-contain select-none"
       aria-label="Upcoming Events Carousel"
     >
-      <div ref={trackRef} className="flex items-stretch gap-2.5 w-max py-0.5">
+      <div ref={trackRef} className="relative flex items-stretch gap-2.5 w-max py-0.5">
         {copies.map((copyIndex) => {
           const isMiddlePrimary = !shouldLoop || copyIndex === 1;
           return events.map((eventItem, idx) => {

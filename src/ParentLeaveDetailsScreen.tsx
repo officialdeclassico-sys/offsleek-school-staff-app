@@ -13,7 +13,6 @@ import {
   CheckCircle2,
   XCircle,
 } from 'lucide-react';
-import StaffStatusBar from './components/StaffStatusBar';
 import StaffBottomNav from './components/StaffBottomNav';
 import {
   ParentLeaveRequest,
@@ -97,11 +96,8 @@ export default function ParentLeaveDetailsScreen({
   return (
     <div className="relative w-full h-full bg-white flex flex-col justify-between overflow-hidden select-none text-neutral-900 font-sans">
       
-      {/* Top Status Bar with Dynamic Island */}
-      <StaffStatusBar />
-
       {/* Main Scrollable Content */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-3.5 sm:px-4.5 pt-1 pb-4 space-y-3.5">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-3.5 sm:px-4.5 pt-[max(0.75rem,env(safe-area-inset-top))] pb-4 space-y-3.5">
         
         {/* Header: [ChevronLeft] [Heading & Subheading] */}
         <div className="flex items-start gap-1.5 min-w-0 pt-0.5">

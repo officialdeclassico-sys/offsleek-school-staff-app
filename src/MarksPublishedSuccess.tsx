@@ -15,7 +15,6 @@ import {
 } from 'lucide-react';
 import { AssessmentRecord } from './services/marksService';
 import AnimatedStaffVerifiedBadge from './components/AnimatedStaffVerifiedBadge';
-import StaffStatusBar from './components/StaffStatusBar';
 import { triggerSuccessFeedback } from './utils/feedback';
 import { formatISTDateTime } from './utils/dateTimeUtils';
 
@@ -43,10 +42,8 @@ export default function MarksPublishedSuccess({
   return (
     <div className="relative w-full h-full bg-white flex flex-col justify-between overflow-hidden select-none text-neutral-900 font-sans">
       
-      <StaffStatusBar />
-
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-4 sm:px-5 pt-4 pb-4 space-y-4">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-4 sm:px-5 pt-[max(1rem,env(safe-area-inset-top))] pb-4 space-y-4">
         
         {/* Prominent Success Hero Checkmark & Heading */}
         <div className="flex flex-col items-center text-center pt-2">

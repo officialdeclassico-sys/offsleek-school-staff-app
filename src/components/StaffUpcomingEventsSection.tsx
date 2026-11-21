@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Calendar, RefreshCw } from 'lucide-react';
+import { AlertCircle, Calendar, CalendarDays, RefreshCw } from 'lucide-react';
 import {
   CalendarEventDetail,
   CalendarSubscriptionStatus,
@@ -71,12 +71,15 @@ export default function StaffUpcomingEventsSection({
     <section aria-labelledby="staff-upcoming-events-heading" className="space-y-2 pt-0.5">
       {/* A. Section Header */}
       <div className="flex items-center justify-between px-1">
-        <h3
-          id="staff-upcoming-events-heading"
-          className="text-[14px] font-bold text-[#000000] tracking-tight"
-        >
-          Upcoming Events
-        </h3>
+        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+          <CalendarDays className="w-4 h-4 text-neutral-900 stroke-[2] shrink-0" />
+          <h3
+            id="staff-upcoming-events-heading"
+            className="text-[14px] font-bold text-[#000000] tracking-tight"
+          >
+            Upcoming Events
+          </h3>
+        </div>
         <button
           type="button"
           onClick={onViewAll}

@@ -32,7 +32,6 @@ import LogHomework from './LogHomework';
 import ReviewHomework from './ReviewHomework';
 import HomeworkAssignedSuccess from './HomeworkAssignedSuccess';
 import ViewAssignedHomework from './ViewAssignedHomework';
-import StaffStatusBar from './components/StaffStatusBar';
 import { StaffRequest, ParentLeaveRequest } from './services/requestsService';
 import {
   AttendanceRecord,
@@ -254,12 +253,11 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-[#141820] flex items-center justify-center p-0 sm:p-4 md:p-6 overflow-x-hidden select-none antialiased">
-      
-      {/* Unified notch-free mobile device container across Login and all Staff Portal screens */}
+    <div className="h-dvh w-full bg-[#141820] flex items-center justify-center p-0 sm:p-3 md:p-4 overflow-hidden select-none antialiased">
+      {/* Portrait mobile application container centered on desktop/laptop, edge-to-edge on mobile */}
       <div
         data-offsleek-frame="true"
-        className="relative isolate w-full sm:max-w-[390px] h-screen sm:h-[844px] sm:max-h-[880px] bg-white sm:rounded-[40px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.7),0_0_0_1px_rgba(255,255,255,0.08)] overflow-hidden flex flex-col justify-between"
+        className="relative isolate w-full sm:max-w-[390px] h-full bg-white sm:rounded-[32px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.7),0_0_0_1px_rgba(255,255,255,0.08)] overflow-hidden flex flex-col justify-between"
       >
         
         {/* Screen 1: Dashboard */}
@@ -719,10 +717,8 @@ export default function App() {
         {/* Screen 4: Login Screen */}
         {currentScreen === 'LOGIN' && (
           <div className="relative w-full h-full bg-white flex flex-col justify-between overflow-hidden select-none text-neutral-900 font-sans">
-            <StaffStatusBar />
-
             {/* Compact Main Login Stack */}
-            <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-3.5 sm:px-4.5 py-2 flex flex-col justify-center">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-3.5 sm:px-4.5 pt-[max(1rem,env(safe-area-inset-top))] pb-4 flex flex-col justify-center">
               {/* Top Branding Section */}
               <div className="flex flex-col items-center justify-center pt-1 pb-3">
                 {/* Main OFFSLEEK Floating Molecule Logo */}
@@ -930,7 +926,6 @@ export default function App() {
             onClose={() => setShowSavedMarksModal(false)}
           />
         )}
-
       </div>
     </div>
   );

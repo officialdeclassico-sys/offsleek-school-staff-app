@@ -15,7 +15,6 @@ import {
 } from 'lucide-react';
 import { AttendanceRecord } from './services/attendanceService';
 import AnimatedStaffVerifiedBadge from './components/AnimatedStaffVerifiedBadge';
-import StaffStatusBar from './components/StaffStatusBar';
 import { triggerSuccessFeedback } from './utils/feedback';
 import { getAssetUrl } from './utils/assetUtils';
 
@@ -62,10 +61,8 @@ export default function AttendanceSaved({
         </div>
       )}
 
-      <StaffStatusBar />
-
       {/* Main Scrollable Content */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-4 sm:px-5 pt-3 pb-4 space-y-3.5">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-4 sm:px-5 pt-[max(0.75rem,env(safe-area-inset-top))] pb-4 space-y-3.5">
         
         {/* Status Banner */}
         <div className="flex items-center gap-3.5 pt-1">

@@ -5,7 +5,6 @@
 
 import React, { useEffect } from 'react';
 import { ChevronLeft, Clock, FileText, Calendar, Paperclip } from 'lucide-react';
-import StaffStatusBar from './components/StaffStatusBar';
 import StaffBottomNav from './components/StaffBottomNav';
 import { StaffRequest } from './services/requestsService';
 import { triggerSuccessFeedback } from './utils/feedback';
@@ -50,11 +49,8 @@ export default function RequestSubmittedScreen({
   return (
     <div className="relative w-full h-full bg-white flex flex-col justify-between overflow-hidden select-none text-neutral-900 font-sans">
       
-      {/* Top Status Bar with Dynamic Island */}
-      <StaffStatusBar />
-
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-4 sm:px-5 pt-1 pb-4 flex flex-col justify-between space-y-4">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-4 sm:px-5 pt-[max(0.75rem,env(safe-area-inset-top))] pb-4 flex flex-col justify-between space-y-4">
         
         <div className="space-y-3.5">
           

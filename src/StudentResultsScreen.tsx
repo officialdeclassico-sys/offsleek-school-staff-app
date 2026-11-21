@@ -20,7 +20,6 @@ import {
   X,
 } from 'lucide-react';
 import StaffBottomNav from './components/StaffBottomNav';
-import StaffStatusBar from './components/StaffStatusBar';
 import { useAlignedDropdownPosition } from './hooks/useAlignedDropdownPosition';
 import { getActiveStaffCalendarContext } from './services/calendarService';
 import {
@@ -240,10 +239,8 @@ export default function StudentResultsScreen({
 
   return (
     <div className="relative w-full h-full bg-white flex flex-col justify-between overflow-hidden select-none text-neutral-900 font-sans">
-      <StaffStatusBar />
-
       {/* Header */}
-      <header className="shrink-0 px-3.5 sm:px-4 pt-1 pb-2.5 bg-white">
+      <header className="shrink-0 px-3.5 sm:px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2.5 bg-white">
         <div className="flex items-start gap-2">
           <button
             type="button"
@@ -345,7 +342,7 @@ export default function StudentResultsScreen({
                   className="offsleek-dropdown-menu fixed z-[70] animate-in fade-in duration-120"
                 >
                   <div
-                    style={{ maxHeight: `${dropdownGeometry.maxHeight}px` }}
+                    style={{ maxHeight: `${Math.max(0, dropdownGeometry.maxHeight - 2)}px` }}
                     className="offsleek-dropdown-list overflow-y-auto no-scrollbar"
                   >
                     {filteredStudents.length === 0 ? (
@@ -381,7 +378,7 @@ export default function StudentResultsScreen({
                                   {student.name}
                                 </div>
                                 <div
-                                  className={`text-[10.5px] truncate tabular-nums ${
+                                  className={`offsleek-dropdown-option-desc text-[10.5px] truncate tabular-nums ${
                                     isSelected ? 'text-neutral-300' : 'text-[#6b7280]'
                                   }`}
                                 >

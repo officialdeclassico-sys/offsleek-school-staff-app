@@ -24,7 +24,6 @@ import {
   saveHomeworkRecord,
   downloadHomeworkAttachment,
 } from './services/homeworkService';
-import StaffStatusBar from './components/StaffStatusBar';
 import { getAssetUrl } from './utils/assetUtils';
 
 interface ReviewHomeworkProps {
@@ -126,10 +125,8 @@ export default function ReviewHomework({
 
   return (
     <div className="relative w-full h-full bg-white flex flex-col justify-between overflow-hidden select-none text-neutral-900 font-sans">
-      <StaffStatusBar />
-
       {/* Main Scrollable Content Area */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-3.5 sm:px-4.5 pt-1.5 pb-6 space-y-3">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-3.5 sm:px-4.5 pt-[max(0.75rem,env(safe-area-inset-top))] pb-6 space-y-3">
         {/* Header with Back Button */}
         <div className="pt-0.5 flex items-start gap-2">
           <button

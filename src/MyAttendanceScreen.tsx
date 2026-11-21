@@ -17,7 +17,6 @@ import {
   Timer,
   XCircle,
 } from 'lucide-react';
-import StaffStatusBar from './components/StaffStatusBar';
 import StaffBottomNav from './components/StaffBottomNav';
 import {
   checkInStaffAttendance,
@@ -201,8 +200,7 @@ export default function MyAttendanceScreen({
   if (!attendanceData) {
     return (
       <div className="relative w-full h-full bg-white flex flex-col justify-between overflow-hidden select-none text-neutral-900 font-sans">
-        <StaffStatusBar />
-        <div className="flex-1 flex items-center justify-center text-xs text-neutral-500">
+        <div className="flex-1 flex items-center justify-center text-xs text-neutral-500 pt-[max(0.75rem,env(safe-area-inset-top))]">
           Loading attendance records...
         </div>
         <StaffBottomNav
@@ -221,11 +219,8 @@ export default function MyAttendanceScreen({
 
   return (
     <div className="relative w-full h-full bg-white flex flex-col justify-between overflow-hidden select-none text-neutral-900 font-sans">
-      {/* Top Status Bar */}
-      <StaffStatusBar />
-
       {/* Main Scrollable Content */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-3.5 sm:px-4.5 pt-1 pb-4 space-y-3.5">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-3.5 sm:px-4.5 pt-[max(0.75rem,env(safe-area-inset-top))] pb-4 space-y-3.5">
         {/* 1. Page Header (No month dropdown beside heading) */}
         <div className="flex items-start gap-1.5 pt-0.5">
           <button

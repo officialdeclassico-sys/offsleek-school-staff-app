@@ -43,7 +43,6 @@ import {
   uploadAnnouncementAttachment,
 } from './utils/announcementAttachmentUtils';
 import StaffBottomNav from './components/StaffBottomNav';
-import StaffStatusBar from './components/StaffStatusBar';
 import OffsleekDropdown from './components/OffsleekDropdown';
 import { formatISTDateMedium } from './utils/dateTimeUtils';
 
@@ -346,11 +345,9 @@ export default function AnnouncementsScreen({
         </div>
       )}
 
-      <StaffStatusBar />
-
       {/* Main Content Area */}
       <div
-        className={`flex-1 overflow-x-hidden no-scrollbar px-3.5 sm:px-4.5 pt-1.5 pb-4 space-y-3.5 ${
+        className={`flex-1 overflow-x-hidden no-scrollbar px-3.5 sm:px-4.5 pt-[max(0.75rem,env(safe-area-inset-top))] pb-4 space-y-3.5 ${
           activePdfAttachment || selectedAnnouncement || showCreateModal
             ? 'overflow-y-hidden'
             : 'overflow-y-auto'
@@ -687,7 +684,7 @@ export default function AnnouncementsScreen({
                   ) : uploadedAttachment ? (
                     <div className="w-full bg-neutral-100/80 border border-neutral-200/80 rounded-xl p-2.5 flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                        <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-md tracking-wider shrink-0">
+                        <span className="bg-black text-white text-[10px] font-bold px-2 py-1 rounded-md tracking-wider shrink-0">
                           {getAttachmentBadgeLabel(uploadedAttachment)}
                         </span>
                         <div className="min-w-0 flex-1">

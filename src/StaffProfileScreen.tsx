@@ -29,7 +29,6 @@ import {
   Shield,
 } from 'lucide-react';
 import StaffBottomNav from './components/StaffBottomNav';
-import StaffStatusBar from './components/StaffStatusBar';
 import { getAssetUrl } from './utils/assetUtils';
 
 interface StaffProfileScreenProps {
@@ -45,8 +44,7 @@ type ProfileSubView =
   | 'MAIN'
   | 'PERSONAL_INFO'
   | 'APP_SETTINGS'
-  | 'ASSIGNED_CLASSES'
-  | 'DOCUMENTS';
+  | 'ASSIGNED_CLASSES';
 
 export default function StaffProfileScreen({
   onNavigateHome,
@@ -113,37 +111,6 @@ export default function StaffProfileScreen({
     },
   ];
 
-  const authorizedDocumentsList = [
-    {
-      id: 'doc-01',
-      title: 'Teacher Appointment Letter',
-      refNo: 'GW/HR/2024/082',
-      date: '12 June 2024',
-      status: 'Verified & Active',
-    },
-    {
-      id: 'doc-02',
-      title: 'Faculty Identity & Background Clearance',
-      refNo: 'GW/SEC/2024/114',
-      date: '15 June 2024',
-      status: 'Cleared',
-    },
-    {
-      id: 'doc-03',
-      title: 'Academic Code of Professional Conduct 2025–26',
-      refNo: 'GW/ACAD/2025/009',
-      date: '01 July 2025',
-      status: 'Acknowledged',
-    },
-    {
-      id: 'doc-04',
-      title: 'Staff Medical & Health Insurance Policy Card',
-      refNo: 'GW/MED/2025/443',
-      date: '01 August 2025',
-      status: 'Active',
-    },
-  ];
-
   return (
     <div className="relative w-full h-full bg-white flex flex-col justify-between overflow-hidden select-none text-neutral-900 font-sans">
       
@@ -160,10 +127,8 @@ export default function StaffProfileScreen({
         </div>
       )}
 
-      <StaffStatusBar />
-
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-3.5 sm:px-4.5 pt-1 pb-3 space-y-3">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-3.5 sm:px-4.5 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 space-y-3">
         
         {/* =================================================================== */}
         {/* VIEW 1: MAIN PROFILE SCREEN (Exact Replica of Left Reference Image) */}
@@ -263,28 +228,7 @@ export default function StaffProfileScreen({
                 <ChevronRight className="w-4 h-4 text-neutral-400 shrink-0 ml-2" />
               </div>
 
-              {/* Option 3: Documents */}
-              <div
-                onClick={() => setSubView('DOCUMENTS')}
-                className="bg-white border border-[#e5e7eb] hover:border-neutral-400 hover:bg-neutral-50/50 rounded-2xl p-3 sm:p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] flex items-center justify-between cursor-pointer transition"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-[#f8f9fa] border border-[#e5e7eb] text-neutral-800 flex items-center justify-center shrink-0">
-                    <FileText className="w-5 h-5 stroke-[1.8]" />
-                  </div>
-                  <div className="min-w-0 text-left">
-                    <div className="text-[13px] sm:text-[13.5px] font-bold text-neutral-900 leading-snug truncate">
-                      Documents
-                    </div>
-                    <div className="text-[11px] text-[#6b7280] mt-0.5 leading-tight truncate">
-                      View official documents shared by school
-                    </div>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-neutral-400 shrink-0 ml-2" />
-              </div>
-
-              {/* Option 4: App Settings */}
+              {/* Option 3: App Settings */}
               <div
                 onClick={() => setSubView('APP_SETTINGS')}
                 className="bg-white border border-[#e5e7eb] hover:border-neutral-400 hover:bg-neutral-50/50 rounded-2xl p-3 sm:p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] flex items-center justify-between cursor-pointer transition"
@@ -675,96 +619,36 @@ export default function StaffProfileScreen({
                   key={idx}
                   className="bg-white border border-[#e5e7eb] rounded-2xl p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-2"
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-neutral-100 border border-neutral-200 text-neutral-900 flex items-center justify-center font-bold text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <div className="min-w-[44px] h-7 px-2 rounded-lg bg-neutral-100 border border-neutral-200 text-neutral-900 inline-flex items-center justify-center font-bold text-[11.5px] leading-none whitespace-nowrap shrink-0 tabular-nums">
                         {item.classSection.replace('Grade ', '')}
                       </div>
-                      <div>
-                        <div className="text-[13.5px] font-bold text-neutral-900">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[13.5px] font-bold text-neutral-900 leading-snug truncate">
                           {item.classSection}
                         </div>
-                        <div className="text-[11px] text-neutral-500">{item.role}</div>
+                        <div className="text-[11px] text-neutral-500 leading-snug truncate">
+                          {item.role}
+                        </div>
                       </div>
                     </div>
-                    <span className="text-[11px] font-semibold text-neutral-700 bg-[#f8f9fa] border border-neutral-200 px-2 py-0.5 rounded-md">
+                    <span className="text-[11px] font-semibold text-neutral-700 bg-[#f8f9fa] border border-neutral-200 px-2 py-0.5 rounded-md whitespace-nowrap shrink-0">
                       {item.studentsCount} Students
                     </span>
                   </div>
 
-                  <div className="pt-1.5 border-t border-neutral-100 flex items-center justify-between text-[11px] text-neutral-600">
-                    <div>
+                  <div className="pt-1.5 border-t border-neutral-100 flex items-center justify-between gap-2 text-[11px] text-neutral-600">
+                    <div className="min-w-0">
                       <span className="text-neutral-400">Subjects: </span>
                       <span className="font-semibold text-neutral-800">
                         {item.subjects.join(', ')}
                       </span>
                     </div>
-                    <span className="text-neutral-400">{item.room}</span>
+                    <span className="text-neutral-400 whitespace-nowrap shrink-0">{item.room}</span>
                   </div>
                 </div>
               ))}
-            </div>
-          </div>
-        )}
-
-        {/* =================================================================== */}
-        {/* VIEW 5: DOCUMENTS (Dedicated Page)                                  */}
-        {/* =================================================================== */}
-        {subView === 'DOCUMENTS' && (
-          <div className="space-y-3 animate-in fade-in duration-150">
-            {/* Standardized Header */}
-            <div className="flex items-start gap-1.5 min-w-0">
-              <button
-                type="button"
-                onClick={() => setSubView('MAIN')}
-                className="p-1 -ml-1 text-neutral-800 hover:text-black active:scale-95 transition cursor-pointer shrink-0 mt-0.5 rounded-md hover:bg-neutral-100/60"
-                aria-label="Back to Profile"
-              >
-                <ChevronLeft className="w-5 h-5 text-neutral-900 stroke-[2.2]" />
-              </button>
-              <div className="min-w-0 flex-1">
-                <h2 className="text-[20px] sm:text-[22px] font-bold text-neutral-900 tracking-tight leading-tight">
-                  Documents
-                </h2>
-                <p className="text-[11.5px] sm:text-[12px] text-neutral-500 font-normal mt-0.5">
-                  View official documents shared by school
-                </p>
-              </div>
-            </div>
-
-            {/* Authorized Documents List */}
-            <div className="space-y-2.5">
-              {authorizedDocumentsList.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="bg-white border border-[#e5e7eb] rounded-2xl p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] flex items-start gap-3"
-                >
-                  <div className="w-9 h-9 rounded-xl bg-neutral-100 border border-neutral-200 text-neutral-800 flex items-center justify-center shrink-0 mt-0.5">
-                    <FileText className="w-4.5 h-4.5 stroke-[1.8]" />
-                  </div>
-                  <div className="min-w-0 flex-1 leading-snug">
-                    <div className="text-[13px] font-bold text-neutral-900 truncate">
-                      {doc.title}
-                    </div>
-                    <div className="text-[10.5px] text-neutral-500 mt-0.5">
-                      Ref: {doc.refNo} • Issued: {doc.date}
-                    </div>
-                    <div className="mt-1 flex items-center gap-1.5 text-[10.5px]">
-                      <span className="inline-flex items-center gap-1 text-neutral-800 bg-[#f8f9fa] border border-neutral-200 px-2 py-0.5 rounded-full font-medium">
-                        <img
-                          src={getAssetUrl('/assets/Dark Verified Check Badge.png')}
-                          alt="Verified"
-                          className="w-3.5 h-3.5 object-contain shrink-0"
-                        />
-                        <span>{doc.status}</span>
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              <div className="p-2 text-center text-[11px] text-neutral-400">
-                Official records verified by Greenwood International School HR
-              </div>
             </div>
           </div>
         )}

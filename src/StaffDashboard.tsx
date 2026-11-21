@@ -14,6 +14,7 @@ import {
   FileText,
   GraduationCap,
   Inbox,
+  LayoutGrid,
   RefreshCw,
   Sparkles,
   UserCheck,
@@ -33,7 +34,6 @@ import { getStoredHomeworkRecords } from './services/homeworkService';
 import { getSavedMarksRecords } from './services/marksService';
 import { formatISTTime12h, useISTCurrentDate } from './utils/dateTimeUtils';
 import StaffBottomNav from './components/StaffBottomNav';
-import StaffStatusBar from './components/StaffStatusBar';
 import StaffUpcomingEventsSection from './components/StaffUpcomingEventsSection';
 import { CalendarEventDetail, getActiveStaffCalendarContext } from './services/calendarService';
 import { getAssetUrl } from './utils/assetUtils';
@@ -185,10 +185,8 @@ export default function StaffDashboard({
         </div>
       )}
 
-      <StaffStatusBar />
-
       {/* Main Scrollable Content */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-3.5 sm:px-4.5 pt-1 pb-3 space-y-3">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-3.5 sm:px-4.5 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 space-y-3">
         
         {/* A. School Header with Logo and Tagline */}
         <div className="flex items-center gap-2 pt-0.5">
@@ -264,12 +262,15 @@ export default function StaffDashboard({
         {/* C. Unified Quick Access Section: 3-Column, 3-Row Grid of 9 Uniform Tiles */}
         <section aria-labelledby="quick-access-heading" className="space-y-2 pt-0.5">
           <div className="flex items-center justify-between">
-            <h3
-              id="quick-access-heading"
-              className="text-[13.5px] sm:text-[14px] font-bold text-neutral-900 tracking-tight"
-            >
-              Quick Access
-            </h3>
+            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+              <LayoutGrid className="w-4 h-4 text-neutral-900 stroke-[2] shrink-0" />
+              <h3
+                id="quick-access-heading"
+                className="text-[13.5px] sm:text-[14px] font-bold text-neutral-900 tracking-tight"
+              >
+                Quick Access
+              </h3>
+            </div>
           </div>
 
           <div className="grid grid-cols-3 gap-2">
@@ -325,12 +326,12 @@ export default function StaffDashboard({
               </span>
             </button>
 
-            {/* Row 2, Tile 4: TDU Requests */}
+            {/* Row 2, Tile 4: Leave Requests */}
             <button
               type="button"
               onClick={() => {
                 if (onOpenParentLeaveApprovals) onOpenParentLeaveApprovals();
-                else showToast('Action: TDU Requests');
+                else showToast('Action: Leave Requests');
               }}
               className="w-full min-w-0 bg-white border border-[#e5e7eb] hover:border-neutral-400 hover:bg-neutral-50/70 rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] active:scale-[0.98] min-h-[72px] sm:min-h-[76px]"
             >
@@ -343,7 +344,7 @@ export default function StaffDashboard({
                 )}
               </div>
               <span className="text-center text-[10px] min-[375px]:text-[10.5px] sm:text-[11px] font-semibold text-neutral-900 leading-tight break-words">
-                TDU Requests
+                Leave Requests
               </span>
             </button>
 

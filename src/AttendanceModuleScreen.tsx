@@ -314,7 +314,7 @@ export default function AttendanceModuleScreen({
       {selectedStudentId && activeStudent ? (
         <div className="flex-1 flex flex-col h-full overflow-hidden bg-white">
           {/* 1. Student Attendance Heading */}
-          <div className="px-4 pt-3 pb-2 border-b border-[#f3f4f6] shrink-0">
+          <div className="px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2 border-b border-[#f3f4f6] shrink-0">
             <div className="flex items-start gap-1.5 min-w-0">
               <button
                 type="button"
@@ -592,7 +592,7 @@ export default function AttendanceModuleScreen({
         /* ========================================================================= */
         <div className="flex-1 flex flex-col h-full overflow-hidden bg-white">
           {/* Header */}
-          <div className="px-4 pt-3 pb-2 border-b border-[#f3f4f6] shrink-0">
+          <div className="px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2 border-b border-[#f3f4f6] shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 min-w-0">
                 <button
@@ -938,7 +938,7 @@ export default function AttendanceModuleScreen({
         /* ========================================================================= */
         <div className="flex-1 flex flex-col h-full overflow-hidden bg-white">
           {/* Header */}
-          <div className="px-4 pt-3 pb-2 border-b border-[#f3f4f6] shrink-0">
+          <div className="px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2 border-b border-[#f3f4f6] shrink-0">
             <h1 className="text-[24px] sm:text-[26px] font-extrabold text-neutral-950 tracking-tight leading-tight">
               Attendance
             </h1>

@@ -31,7 +31,6 @@ import {
   ALLOWED_EXTENSIONS,
   MAX_FILE_SIZE_BYTES,
 } from './services/homeworkService';
-import StaffStatusBar from './components/StaffStatusBar';
 import OffsleekDropdown from './components/OffsleekDropdown';
 import { getAssetUrl } from './utils/assetUtils';
 import {
@@ -337,10 +336,8 @@ export default function LogHomework({
         </div>
       )}
 
-      <StaffStatusBar />
-
       {/* Main Scrollable Content Area */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-3.5 sm:px-4.5 pt-1.5 pb-24 space-y-3">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-3.5 sm:px-4.5 pt-[max(0.75rem,env(safe-area-inset-top))] pb-24 space-y-3">
         
         {/* Page Title & Subtitle with Back Chevron matching Screen 1 reference */}
         <div className="pt-0.5 flex items-start gap-2">

@@ -17,7 +17,6 @@ import {
   AssessmentRecord,
   saveAndPublishMarks,
 } from './services/marksService';
-import StaffStatusBar from './components/StaffStatusBar';
 import { getAssetUrl } from './utils/assetUtils';
 
 interface ReviewAndSaveMarksProps {
@@ -120,10 +119,8 @@ export default function ReviewAndSaveMarks({
         </div>
       )}
 
-      <StaffStatusBar />
-
       {/* Main Scrollable Content */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-3.5 sm:px-4.5 pt-3 pb-3 space-y-3">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-3.5 sm:px-4.5 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 space-y-3">
         
         {/* Title & Subtitle with Small Back Chevron */}
         <div className="flex items-start gap-1.5 pt-0.5 pb-1">

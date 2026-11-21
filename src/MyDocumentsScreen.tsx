@@ -14,7 +14,6 @@ import {
   X,
   Check,
 } from 'lucide-react';
-import StaffStatusBar from './components/StaffStatusBar';
 import StaffBottomNav from './components/StaffBottomNav';
 import { StaffDocument, getStaffDocuments, downloadStaffDocument } from './services/documentsService';
 
@@ -103,11 +102,8 @@ export default function MyDocumentsScreen({
         </div>
       )}
 
-      {/* Top Status Bar with Dynamic Island */}
-      <StaffStatusBar />
-
       {/* Main Content Scrollable Area */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-3.5 sm:px-4.5 pt-1 pb-4 space-y-3.5">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-3.5 sm:px-4.5 pt-[max(0.75rem,env(safe-area-inset-top))] pb-4 space-y-3.5">
         
         {/* Header matching reference: [Chevron back] [My Documents / Official documents and employment records] */}
         <div className="flex items-start gap-1.5 min-w-0 pt-0.5">

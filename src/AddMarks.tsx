@@ -22,7 +22,6 @@ import {
   getInitialMarksForGrade,
 } from './services/marksService';
 import { ASSIGNED_CLASSES } from './services/attendanceService';
-import StaffStatusBar from './components/StaffStatusBar';
 import OffsleekDropdown from './components/OffsleekDropdown';
 import { addDaysIST, formatISTDateMedium, getNow } from './utils/dateTimeUtils';
 import { getAssetUrl } from './utils/assetUtils';
@@ -330,13 +329,11 @@ export default function AddMarks({
         </div>
       )}
 
-      <StaffStatusBar />
-
       {/* Main Scrollable Content */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-3.5 sm:px-4.5 pt-2 pb-12 space-y-3">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-3.5 sm:px-4.5 pb-12 space-y-3">
         
         {/* Page Heading & Subtitle with Small Back Chevron (Sticky on scroll) */}
-        <div className="sticky top-0 bg-white z-20 pt-1 pb-2 border-b border-[#f4f5f7] flex items-start justify-between gap-2 -mx-3.5 sm:-mx-4.5 px-3.5 sm:px-4.5">
+        <div className="sticky top-0 bg-white z-20 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2 border-b border-[#f4f5f7] flex items-start justify-between gap-2 -mx-3.5 sm:-mx-4.5 px-3.5 sm:px-4.5">
           <div className="flex items-start gap-1.5 min-w-0 flex-1">
             <button
               type="button"
