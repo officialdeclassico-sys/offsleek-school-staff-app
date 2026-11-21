@@ -575,7 +575,13 @@ export default function StaffProfileScreen({
 
               {/* Option 3: Help & Support */}
               <div
-                onClick={() => setShowHelpModal(true)}
+                onClick={() => {
+                  if (onNavigateMyRequests) {
+                    onNavigateMyRequests();
+                  } else {
+                    setShowHelpModal(true);
+                  }
+                }}
                 className="bg-white border border-[#e5e7eb] hover:border-neutral-400 hover:bg-neutral-50/50 rounded-2xl p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] flex items-center justify-between cursor-pointer transition"
               >
                 <div className="flex items-center gap-3 min-w-0">
@@ -587,7 +593,7 @@ export default function StaffProfileScreen({
                       Help & Support
                     </div>
                     <div className="text-[11px] text-[#6b7280] mt-0.5 leading-tight truncate">
-                      FAQs and contact support
+                      Raise a request, track status and get support
                     </div>
                   </div>
                 </div>

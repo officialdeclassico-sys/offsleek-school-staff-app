@@ -21,6 +21,7 @@ import MyRequestsScreen from './MyRequestsScreen';
 import MyDocumentsScreen from './MyDocumentsScreen';
 import MyAttendanceScreen from './MyAttendanceScreen';
 import SchoolCalendarScreen from './SchoolCalendarScreen';
+import StudentResultsScreen from './StudentResultsScreen';
 import { CalendarEventDetail } from './services/calendarService';
 import LeaveRequestFormScreen from './LeaveRequestFormScreen';
 import LeaveRequestSubmittedScreen from './LeaveRequestSubmittedScreen';
@@ -78,7 +79,8 @@ type Screen =
   | 'VIEW_ASSIGNED_HOMEWORK'
   | 'MY_DOCUMENTS'
   | 'MY_ATTENDANCE'
-  | 'SCHOOL_CALENDAR';
+  | 'SCHOOL_CALENDAR'
+  | 'STUDENTS_RESULTS';
 
 
 export default function App() {
@@ -298,6 +300,10 @@ export default function App() {
               setPreviousScreen(currentScreen);
               setCurrentScreen('SCHOOL_CALENDAR');
             }}
+            onOpenStudentsResults={() => {
+              setPreviousScreen(currentScreen);
+              setCurrentScreen('STUDENTS_RESULTS');
+            }}
             onSelectCalendarEvent={(event) => {
               setCalendarNavTarget({
                 event,
@@ -496,6 +502,23 @@ export default function App() {
             }}
             onNavigateProfile={() => {
               setCalendarNavTarget(null);
+              setPreviousScreen(currentScreen);
+              setCurrentScreen('PROFILE');
+            }}
+          />
+        )}
+
+        {/* Screen: Student Results Screen */}
+        {currentScreen === 'STUDENTS_RESULTS' && (
+          <StudentResultsScreen
+            onBack={() => setCurrentScreen('DASHBOARD')}
+            onNavigateHome={() => setCurrentScreen('DASHBOARD')}
+            onNavigateAttendance={handleOpenAttendanceModule}
+            onNavigateAnnouncements={() => {
+              setPreviousScreen(currentScreen);
+              setCurrentScreen('ANNOUNCEMENTS');
+            }}
+            onNavigateProfile={() => {
               setPreviousScreen(currentScreen);
               setCurrentScreen('PROFILE');
             }}

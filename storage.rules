@@ -1,0 +1,34 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isValidAttachment() {
+      return request.resource.size > 0
+        && request.resource.size <= 10 * 1024 * 1024
+        && (
+          request.resource.contentType == 'application/pdf' ||
+          request.resource.contentType == 'image/jpeg' ||
+          request.resource.contentType == 'image/jpg' ||
+          request.resource.contentType == 'image/png'
+        );
+    }
+
+    match /schools/{schoolId}/staffSupportAttachments/{staffId}/{ticketId}/{fileName} {
+      allow read: if isAuthenticated() && (
+        request.auth.uid == staffId ||
+        (request.auth.token.schoolId == schoolId &&
+          (request.auth.token.role == 'SCHOOL_ADMIN' ||
+           request.auth.token.role == 'HR_ADMIN' ||
+           request.auth.token.role == 'PRINCIPAL')) ||
+        request.auth.token.role == 'OFFSLEEK_SUPPORT'
+      );
+
+      allow write: if isAuthenticated()
+        && request.auth.uid == staffId
+        && isValidAttachment();
+    }
+  }
+}

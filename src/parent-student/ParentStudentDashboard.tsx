@@ -40,6 +40,8 @@ import {
   useISTCurrentDate,
 } from '../utils/dateTimeUtils';
 import { getAssetUrl } from '../utils/assetUtils';
+import MyRequestsScreen from '../MyRequestsScreen';
+import { IllustrativePortalMode } from '../services/illustrativeTestTickets';
 
 export interface ParentStudentDashboardProps {
   onLogout: () => void;
@@ -99,6 +101,8 @@ export default function ParentStudentDashboard({
 }: ParentStudentDashboardProps) {
   const { statusBarTime, todayDateKey } = useISTCurrentDate();
   const [activeTab, setActiveTab] = useState<ActiveTab>('OVERVIEW');
+  const [showMyRequestsView, setShowMyRequestsView] = useState<boolean>(false);
+  const [myRequestsMode, setMyRequestsMode] = useState<IllustrativePortalMode>('STUDENT');
 
   // Modal states
   const [selectedCertificate, setSelectedCertificate] = useState<CertificateRecord | null>(null);
@@ -193,6 +197,19 @@ export default function ParentStudentDashboard({
       setShowRequestCompletionModal(true);
     }, 400);
   };
+
+  if (showMyRequestsView) {
+    return (
+      <MyRequestsScreen
+        initialView="LIST"
+        initialPortalMode={myRequestsMode}
+        onNavigateHome={() => setShowMyRequestsView(false)}
+        onNavigateAttendance={() => setShowMyRequestsView(false)}
+        onNavigateAnnouncements={() => setShowMyRequestsView(false)}
+        onNavigateProfile={() => setShowMyRequestsView(false)}
+      />
+    );
+  }
 
   return (
     <div className="relative w-full h-full bg-[#f8f9fa] flex flex-col justify-between overflow-hidden select-none text-neutral-900 font-sans">
@@ -633,7 +650,46 @@ export default function ParentStudentDashboard({
         {/* TAB 4: REQUESTS & SERVICES */}
         {activeTab === 'REQUESTS' && (
           <div className="space-y-3.5 animate-in fade-in duration-150">
-            
+            {/* My Requests — 10 Illustrative Test Tickets Launcher (Student & Parent Modes) */}
+            <div className="bg-white rounded-2xl p-4 border border-neutral-200/80 shadow-2xs space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-[13.5px] font-bold text-neutral-950">
+                    My Requests (School &amp; OFFSLEEK Support)
+                  </h3>
+                  <p className="text-[11px] text-neutral-500 mt-0.5">
+                    Track the status of your 10 illustrative support tickets
+                  </p>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold">
+                  10 TEST TICKETS
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMyRequestsMode('STUDENT');
+                    setShowMyRequestsView(true);
+                  }}
+                  className="bg-black hover:bg-neutral-800 text-white font-semibold text-[11.5px] py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition"
+                >
+                  <span>Student Mode (10)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMyRequestsMode('PARENT');
+                    setShowMyRequestsView(true);
+                  }}
+                  className="bg-neutral-100 hover:bg-neutral-200 text-neutral-900 border border-neutral-200 font-semibold text-[11.5px] py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition"
+                >
+                  <span>Parent Mode (10)</span>
+                </button>
+              </div>
+            </div>
+
             {/* New Leave Application Form */}
             <div className="bg-white rounded-2xl p-4 border border-neutral-200/80 shadow-2xs space-y-3">
               <div className="flex items-center justify-between pb-2 border-b border-neutral-100">

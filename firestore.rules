@@ -1,0 +1,177 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions for authenticated Staff Portal context
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function userSchoolId() {
+      return request.auth.token.schoolId;
+    }
+
+    function userRole() {
+      return request.auth.token.role;
+    }
+
+    function isSchoolAdminFor(schoolId) {
+      return isAuthenticated() &&
+        userSchoolId() == schoolId &&
+        (userRole() == 'SCHOOL_ADMIN' || userRole() == 'HR_ADMIN' || userRole() == 'PRINCIPAL');
+    }
+
+    function isOffsleekSupport() {
+      return isAuthenticated() && userRole() == 'OFFSLEEK_SUPPORT';
+    }
+
+    // 1. School Support Tickets (Scoped per School)
+    match /schools/{schoolId}/staffSupportTickets/{ticketId} {
+      // Staff can create only their own School Support tickets in their own school
+      allow create: if isAuthenticated()
+        && request.resource.data.destination == 'SCHOOL'
+        && request.resource.data.schoolId == schoolId
+        && request.resource.data.staffId == request.auth.uid;
+
+      // Staff can read only their own tickets; School Admins/HR/Principals can read School tickets for their school
+      allow read: if isAuthenticated() && (
+        (resource.data.staffId == request.auth.uid && resource.data.schoolId == schoolId) ||
+        isSchoolAdminFor(schoolId)
+      );
+
+      // Staff can reply or submit feedback on their own ticket; School Admins can update status/reply
+      allow update: if isAuthenticated() && (
+        (resource.data.staffId == request.auth.uid &&
+          resource.data.schoolId == schoolId &&
+          request.resource.data.staffId == resource.data.staffId &&
+          request.resource.data.schoolId == resource.data.schoolId &&
+          request.resource.data.destination == resource.data.destination) ||
+        isSchoolAdminFor(schoolId)
+      );
+
+      allow delete: if false;
+    }
+
+    // 2. OFFSLEEK Support Tickets (Isolated from School HR / Administration)
+    match /offsleekSupportTickets/{ticketId} {
+      // Staff can create only their own OFFSLEEK Support tickets
+      allow create: if isAuthenticated()
+        && request.resource.data.destination == 'OFFSLEEK'
+        && request.resource.data.staffId == request.auth.uid;
+
+      // Only the ticket owner or authorized OFFSLEEK Support team can read (never School HR/Admin of other staff)
+      allow read: if isAuthenticated() && (
+        resource.data.staffId == request.auth.uid ||
+        isOffsleekSupport()
+      );
+
+      // Only the ticket owner (for replies/feedback) or OFFSLEEK Support can update
+      allow update: if isAuthenticated() && (
+        (resource.data.staffId == request.auth.uid &&
+          request.resource.data.staffId == resource.data.staffId &&
+          request.resource.data.destination == 'OFFSLEEK') ||
+        isOffsleekSupport()
+      );
+
+      allow delete: if false;
+    }
+
+    // 3. Daily Class Attendance Records (Scoped per School & Authorized Staff)
+    function isSchoolStaffFor(schoolId) {
+      return isAuthenticated() &&
+        userSchoolId() == schoolId &&
+        (userRole() == 'STAFF' ||
+          userRole() == 'TEACHER' ||
+          userRole() == 'SCHOOL_ADMIN' ||
+          userRole() == 'HR_ADMIN' ||
+          userRole() == 'PRINCIPAL');
+    }
+
+    function isValidAttendanceId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidAttendanceRecord(data, schoolId) {
+      return data.keys().hasAll([
+          'id',
+          'schoolId',
+          'grade',
+          'dateKey',
+          'totalStudents',
+          'presentCount',
+          'absentCount',
+          'onLeaveCount',
+          'students',
+          'savedAt'
+        ])
+        && data.schoolId is string && data.schoolId == schoolId
+        && data.grade is string && data.grade.size() > 0 && data.grade.size() <= 64
+        && data.dateKey is string && data.dateKey.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && data.totalStudents is int && data.totalStudents >= 0 && data.totalStudents <= 500
+        && data.presentCount is int && data.presentCount >= 0
+        && data.absentCount is int && data.absentCount >= 0
+        && data.onLeaveCount is int && data.onLeaveCount >= 0
+        && (!('lateCount' in data) || (data.lateCount is int && data.lateCount >= 0))
+        && (!('halfDayCount' in data) || (data.halfDayCount is int && data.halfDayCount >= 0))
+        && data.students is list && data.students.size() <= 500;
+    }
+
+    match /schools/{schoolId}/attendanceRecords/{recordId} {
+      allow read: if isSchoolStaffFor(schoolId) && resource.data.schoolId == schoolId;
+
+      allow create: if isSchoolStaffFor(schoolId)
+        && isValidAttendanceId(recordId)
+        && isValidAttendanceRecord(request.resource.data, schoolId);
+
+      allow update: if isSchoolStaffFor(schoolId)
+        && isValidAttendanceId(recordId)
+        && isValidAttendanceRecord(request.resource.data, schoolId)
+        && request.resource.data.schoolId == resource.data.schoolId
+        && request.resource.data.dateKey == resource.data.dateKey
+        && request.resource.data.grade == resource.data.grade;
+
+      allow delete: if false;
+    }
+
+    // 4. Published & Draft Assessment Marks Records (Scoped per School & Authorized Staff)
+    function isValidMarksRecord(data, schoolId) {
+      return data.keys().hasAll([
+          'id',
+          'schoolId',
+          'grade',
+          'subject',
+          'assessmentType',
+          'totalMarks',
+          'passingMarks',
+          'isPublished',
+          'studentMarks'
+        ])
+        && data.schoolId is string && data.schoolId == schoolId
+        && data.grade is string && data.grade.size() > 0 && data.grade.size() <= 64
+        && data.subject is string && data.subject.size() > 0 && data.subject.size() <= 64
+        && data.assessmentType is string && data.assessmentType.size() > 0 && data.assessmentType.size() <= 64
+        && data.totalMarks is int && data.totalMarks > 0 && data.totalMarks <= 1000
+        && data.passingMarks is int && data.passingMarks >= 0 && data.passingMarks <= data.totalMarks
+        && data.isPublished is bool
+        && data.studentMarks is list && data.studentMarks.size() <= 500;
+    }
+
+    match /schools/{schoolId}/marksRecords/{recordId} {
+      allow read: if isSchoolStaffFor(schoolId) && resource.data.schoolId == schoolId;
+
+      allow create: if isSchoolStaffFor(schoolId)
+        && isValidAttendanceId(recordId)
+        && isValidMarksRecord(request.resource.data, schoolId);
+
+      allow update: if isSchoolStaffFor(schoolId)
+        && isValidAttendanceId(recordId)
+        && isValidMarksRecord(request.resource.data, schoolId)
+        && request.resource.data.schoolId == resource.data.schoolId
+        && request.resource.data.grade == resource.data.grade
+        && request.resource.data.subject == resource.data.subject
+        && request.resource.data.assessmentType == resource.data.assessmentType;
+
+      allow delete: if false;
+    }
+  }
+}

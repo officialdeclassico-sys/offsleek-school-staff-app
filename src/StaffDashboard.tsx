@@ -3,26 +3,37 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
+  AlertCircle,
   Calendar,
+  CheckCircle2,
   Clock,
   FileText,
+  GraduationCap,
+  RefreshCw,
+  Sparkles,
   UserCheck,
   ClipboardCheck,
   Users,
-  UserX,
   BarChart2,
+  XCircle,
 } from 'lucide-react';
 import { getParentLeaveRequests } from './services/requestsService';
-import { findAttendanceRecord, getAttendanceRecords } from './services/attendanceService';
+import {
+  getAttendanceRecords,
+  getAuthorizedAttendanceGrades,
+  getDefaultAttendanceGradeForStaff,
+  subscribeToTodayClassOverview,
+  TodayClassOverviewSnapshot,
+} from './services/attendanceService';
 import { getStoredHomeworkRecords } from './services/homeworkService';
 import { getSavedMarksRecords } from './services/marksService';
 import { formatISTTime12h, useISTCurrentDate } from './utils/dateTimeUtils';
 import StaffBottomNav from './components/StaffBottomNav';
 import StaffStatusBar from './components/StaffStatusBar';
 import StaffUpcomingEventsSection from './components/StaffUpcomingEventsSection';
-import { CalendarEventDetail } from './services/calendarService';
+import { CalendarEventDetail, getActiveStaffCalendarContext } from './services/calendarService';
 import { getAssetUrl } from './utils/assetUtils';
 
 interface StaffDashboardProps {
@@ -38,6 +49,7 @@ interface StaffDashboardProps {
   onOpenMyAttendance?: () => void;
   onLogHomework?: () => void;
   onOpenSchoolCalendar?: () => void;
+  onOpenStudentsResults?: () => void;
   onSelectCalendarEvent?: (event: CalendarEventDetail) => void;
 }
 
@@ -65,6 +77,7 @@ export default function StaffDashboard({
   onOpenMyAttendance,
   onLogHomework,
   onOpenSchoolCalendar,
+  onOpenStudentsResults,
   onSelectCalendarEvent,
 }: StaffDashboardProps) {
   const [activeTab, setActiveTab] = useState<'Home' | 'Attendance' | 'Announcements' | 'Profile'>('Home');
@@ -83,25 +96,47 @@ export default function StaffDashboard({
   }, []);
 
   const { fullDateStr, todayDateKey } = useISTCurrentDate();
+  const staffContext = useMemo(() => getActiveStaffCalendarContext(), []);
+  const authorizedAttendanceGrades = useMemo(
+    () => getAuthorizedAttendanceGrades(staffContext),
+    [staffContext]
+  );
+  const [selectedOverviewGrade, setSelectedOverviewGrade] = useState<string>(() =>
+    getDefaultAttendanceGradeForStaff(getActiveStaffCalendarContext())
+  );
+  const [overviewRetryTick, setOverviewRetryTick] = useState(0);
+  const [classOverview, setClassOverview] = useState<TodayClassOverviewSnapshot>(() => ({
+    loading: true,
+    state: 'loading',
+    counts: null,
+    markedCount: 0,
+    unmarkedCount: 0,
+    dateKey: todayDateKey,
+    gradeScope: getDefaultAttendanceGradeForStaff(getActiveStaffCalendarContext()),
+    authorizedGrades: getAuthorizedAttendanceGrades(getActiveStaffCalendarContext()),
+    holidayTitle: null,
+    isLiveFirestore: false,
+    requiresFirebaseAuth: false,
+    error: null,
+    lastUpdatedAt: null,
+  }));
 
-  // Dynamic class statistics synced with today's saved attendance if present
-  const classStats = React.useMemo(() => {
-    const todayRecord = findAttendanceRecord('greenwood-intl', 'Grade 5 - A', todayDateKey);
-    if (todayRecord) {
-      return {
-        total: todayRecord.totalStudents,
-        present: todayRecord.presentCount,
-        absent: todayRecord.absentCount,
-        onLeave: todayRecord.onLeaveCount,
-      };
-    }
-    return {
-      total: 42,
-      present: 38,
-      absent: 3,
-      onLeave: 1,
+  useEffect(() => {
+    const unsubscribe = subscribeToTodayClassOverview(
+      {
+        dateKey: todayDateKey,
+        gradeScope: selectedOverviewGrade,
+        staff: staffContext,
+      },
+      (snapshot) => {
+        setClassOverview(snapshot);
+      }
+    );
+
+    return () => {
+      unsubscribe();
     };
-  }, [todayDateKey]);
+  }, [todayDateKey, selectedOverviewGrade, staffContext, overviewRetryTick]);
 
   const recentActivityTimes = React.useMemo(() => {
     const attRecords = getAttendanceRecords();
@@ -126,7 +161,7 @@ export default function StaffDashboard({
         : '02:30 PM';
 
     return { attTime, hwTime, marksTime };
-  }, [todayDateKey]);
+  }, [todayDateKey, classOverview.lastUpdatedAt]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -276,7 +311,7 @@ export default function StaffDashboard({
           </button>
         </div>
 
-        {/* Quick Access Section: Horizontally Scrollable Row of 5 Tiles with Full Single-Line Labels */}
+        {/* Quick Access Section: Fixed 3-Column, 2-Row Grid of 6 Uniform Tiles */}
         <div className="space-y-1.5 pt-0.5">
           <div className="flex items-center justify-between">
             <h3 className="text-[13.5px] sm:text-[14px] font-bold text-neutral-900 tracking-tight">
@@ -284,7 +319,7 @@ export default function StaffDashboard({
             </h3>
           </div>
 
-          <div className="flex items-stretch gap-2 sm:gap-2.5 overflow-x-auto no-scrollbar py-0.5 scroll-smooth touch-pan-x">
+          <div className="grid grid-cols-3 gap-2">
             {/* 1. Parent Leave */}
             <button
               type="button"
@@ -292,7 +327,7 @@ export default function StaffDashboard({
                 if (onOpenParentLeaveApprovals) onOpenParentLeaveApprovals();
                 else showToast('Action: Parent Leave Approvals');
               }}
-              className="shrink-0 flex-1 min-w-[96px] sm:min-w-[104px] bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-2xl py-2.5 px-3 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] active:scale-[0.98] min-h-[74px]"
+              className="w-full min-w-0 bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] active:scale-[0.98] min-h-[72px] sm:min-h-[74px]"
             >
               <div className="relative w-7 h-7 flex items-center justify-center text-neutral-900 mb-1.5 shrink-0">
                 <Users className="w-[19px] h-[19px] sm:w-5 sm:h-5 stroke-[1.85]" />
@@ -314,7 +349,7 @@ export default function StaffDashboard({
                 if (onOpenMyRequests) onOpenMyRequests();
                 else showToast('Navigation: My Requests');
               }}
-              className="shrink-0 flex-1 min-w-[96px] sm:min-w-[104px] bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-2xl py-2.5 px-3 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] active:scale-[0.98] min-h-[74px]"
+              className="w-full min-w-0 bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] active:scale-[0.98] min-h-[72px] sm:min-h-[74px]"
             >
               <div className="w-7 h-7 flex items-center justify-center text-neutral-900 mb-1.5 shrink-0">
                 <FileText className="w-[19px] h-[19px] sm:w-5 sm:h-5 stroke-[1.85]" />
@@ -331,7 +366,7 @@ export default function StaffDashboard({
                 if (onOpenMyAttendance) onOpenMyAttendance();
                 else showToast('Action: My Staff Attendance');
               }}
-              className="shrink-0 flex-1 min-w-[102px] sm:min-w-[108px] bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-2xl py-2.5 px-3 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] active:scale-[0.98] min-h-[74px]"
+              className="w-full min-w-0 bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] active:scale-[0.98] min-h-[72px] sm:min-h-[74px]"
             >
               <div className="w-7 h-7 flex items-center justify-center text-neutral-900 mb-1.5 shrink-0">
                 <BarChart2 className="w-[19px] h-[19px] sm:w-5 sm:h-5 stroke-[1.85]" />
@@ -348,7 +383,7 @@ export default function StaffDashboard({
                 if (onOpenMyDocuments) onOpenMyDocuments();
                 else showToast('Action: My Official Documents');
               }}
-              className="shrink-0 flex-1 min-w-[102px] sm:min-w-[108px] bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-2xl py-2.5 px-3 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] active:scale-[0.98] min-h-[74px]"
+              className="w-full min-w-0 bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] active:scale-[0.98] min-h-[72px] sm:min-h-[74px]"
             >
               <div className="w-7 h-7 flex items-center justify-center text-neutral-900 mb-1.5 shrink-0">
                 <FileText className="w-[19px] h-[19px] sm:w-5 sm:h-5 stroke-[1.85]" />
@@ -365,13 +400,30 @@ export default function StaffDashboard({
                 if (onOpenSchoolCalendar) onOpenSchoolCalendar();
                 else showToast('Action: School Calendar');
               }}
-              className="shrink-0 flex-1 min-w-[92px] sm:min-w-[98px] bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-2xl py-2.5 px-3 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] active:scale-[0.98] min-h-[74px]"
+              className="w-full min-w-0 bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] active:scale-[0.98] min-h-[72px] sm:min-h-[74px]"
             >
               <div className="w-7 h-7 flex items-center justify-center text-neutral-900 mb-1.5 shrink-0">
                 <Calendar className="w-[19px] h-[19px] sm:w-5 sm:h-5 stroke-[1.85]" />
               </div>
               <span className="text-center text-[10.5px] sm:text-[11px] font-semibold text-neutral-900 leading-tight whitespace-nowrap">
                 Calendar
+              </span>
+            </button>
+
+            {/* 6. Students Results */}
+            <button
+              type="button"
+              onClick={() => {
+                if (onOpenStudentsResults) onOpenStudentsResults();
+                else showToast('Action: Students Results');
+              }}
+              className="w-full min-w-0 bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] active:scale-[0.98] min-h-[72px] sm:min-h-[74px]"
+            >
+              <div className="w-7 h-7 flex items-center justify-center text-neutral-900 mb-1.5 shrink-0">
+                <GraduationCap className="w-[19px] h-[19px] sm:w-5 sm:h-5 stroke-[1.85]" />
+              </div>
+              <span className="text-center text-[10.5px] sm:text-[11px] font-semibold text-neutral-900 leading-tight whitespace-nowrap">
+                Students Results
               </span>
             </button>
           </div>
@@ -439,71 +491,244 @@ export default function StaffDashboard({
           </div>
         </div>
 
-        {/* E. Class Overview Section (Side-by-side Icon & Number, Label Below, No View All Students) */}
-        <div className="bg-white border border-[#e5e7eb] rounded-[20px] sm:rounded-[22px] p-3 sm:p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+        {/* E. Today's Class Overview Section (6 Real-Time Pastel Attendance Summary Cards) */}
+        <section
+          aria-labelledby="todays-class-overview-heading"
+          className="bg-white border border-[#e5e7eb] rounded-[20px] sm:rounded-[22px] p-3 sm:p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.02)]"
+        >
           {/* Header */}
-          <div className="flex items-center gap-1.5 sm:gap-2 mb-2">
-            <Users className="w-4 h-4 text-neutral-900 stroke-[2] shrink-0" />
-            <h3 className="text-[14px] sm:text-[15px] font-bold text-neutral-900">
-              Today’s Class Overview
-            </h3>
+          <div className="flex items-center justify-between gap-2 mb-2.5">
+            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+              <Users className="w-4 h-4 text-neutral-900 stroke-[2] shrink-0" />
+              <h3
+                id="todays-class-overview-heading"
+                className="text-[14px] sm:text-[15px] font-bold text-neutral-900 truncate"
+              >
+                Today’s Class Overview
+              </h3>
+            </div>
+            {authorizedAttendanceGrades.length > 1 ? (
+              <select
+                aria-label="Select class for today's attendance overview"
+                value={selectedOverviewGrade}
+                onChange={(e) => setSelectedOverviewGrade(e.target.value)}
+                className="text-[10.5px] sm:text-[11px] font-medium text-[#6b7280] hover:text-neutral-900 bg-transparent border-0 focus:outline-none cursor-pointer shrink-0 text-right"
+              >
+                {authorizedAttendanceGrades.map((grade) => (
+                  <option key={grade} value={grade}>
+                    {grade}
+                  </option>
+                ))}
+                <option value="ALL">All Classes</option>
+              </select>
+            ) : (
+              <span className="text-[10.5px] sm:text-[11px] font-medium text-[#6b7280] shrink-0">
+                {selectedOverviewGrade}
+              </span>
+            )}
           </div>
 
-          {/* 4 Stat Cards */}
-          <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
-            {/* Stat 1: Total */}
-            <div className="bg-[#f8f9fa] border border-[#eef0f3] rounded-xl p-1.5 sm:p-2 text-center flex flex-col items-center justify-center min-w-0 h-[66px] sm:h-[70px]">
-              <div className="flex items-center justify-center gap-1 sm:gap-1.5 leading-none">
-                <Users className="w-3.5 h-3.5 text-neutral-800 stroke-[2] shrink-0" />
-                <span className="text-[14px] sm:text-[15px] font-bold text-neutral-900 leading-none">
-                  {classStats.total}
-                </span>
-              </div>
-              <div className="text-[9.5px] sm:text-[10.5px] text-[#4b5563] font-medium leading-tight text-center mt-1.5 w-full whitespace-nowrap truncate">
-                Total
+          {/* Loading Skeleton State */}
+          {classOverview.loading ? (
+            <div
+              aria-label="Loading today's attendance overview"
+              className="grid grid-cols-3 min-[360px]:grid-cols-6 gap-1.5 min-[360px]:gap-1"
+            >
+              {[
+                { label: 'Total', bg: 'bg-[#eff6ff]', border: 'border-[#bfdbfe]', text: 'text-[#2563eb]', icon: Users },
+                { label: 'Present', bg: 'bg-[#effaf3]', border: 'border-[#c8ecd5]', text: 'text-[#15803d]', icon: CheckCircle2 },
+                { label: 'Absent', bg: 'bg-[#fff1f2]', border: 'border-[#fecdd3]', text: 'text-[#dc2626]', icon: XCircle },
+                { label: 'Leave', bg: 'bg-[#fefce8]', border: 'border-[#fde68a]', text: 'text-[#b45309]', icon: Calendar },
+                { label: 'Late', bg: 'bg-[#fff7ed]', border: 'border-[#fed7aa]', text: 'text-[#c2410c]', icon: Clock },
+              ].map((item) => {
+                const IconComp = item.icon;
+                return (
+                  <div
+                    key={item.label}
+                    className={`${item.bg} border ${item.border} rounded-2xl px-0.5 py-2 sm:py-2.5 text-center flex flex-col items-center justify-center min-w-0 min-h-[68px] sm:min-h-[72px]`}
+                  >
+                    <IconComp className={`w-4 h-4 ${item.text} stroke-[2] shrink-0 opacity-75`} />
+                    <div className="h-4 w-5 rounded bg-neutral-300/60 animate-pulse mt-1.5" />
+                    <div className={`text-[8.5px] min-[390px]:text-[9px] font-semibold ${item.text} leading-tight mt-1 whitespace-nowrap`}>
+                      {item.label}
+                    </div>
+                  </div>
+                );
+              })}
+              <div className="bg-[#f5f3ff] border border-[#ddd6fe] rounded-2xl px-0.5 py-2 sm:py-2.5 text-center flex flex-col items-center justify-center min-w-0 min-h-[68px] sm:min-h-[72px]">
+                <svg viewBox="0 0 24 24" className="w-4 h-4 text-[#7c3aed] opacity-75" aria-hidden="true">
+                  <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" />
+                  <path d="M12 3a9 9 0 0 0 0 18V3z" fill="currentColor" />
+                </svg>
+                <div className="h-4 w-5 rounded bg-neutral-300/60 animate-pulse mt-1.5" />
+                <div className="text-[8.5px] min-[390px]:text-[9px] font-semibold text-[#6d28d9] leading-tight mt-1 whitespace-nowrap">
+                  Half Day
+                </div>
               </div>
             </div>
+          ) : classOverview.state === 'error' ? (
+            /* Error / Unavailable State (Never fabricate counts) */
+            <div
+              role="alert"
+              className="bg-[#fff1f2] border border-[#fecdd3] rounded-2xl p-3 flex items-center justify-between gap-2.5"
+            >
+              <div className="flex items-start gap-2 min-w-0">
+                <AlertCircle className="w-4 h-4 text-[#dc2626] shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <div className="text-[12px] font-bold text-neutral-900">
+                    Unable to load attendance
+                  </div>
+                  <p className="text-[10.5px] text-[#6b7280] mt-0.5 break-words">
+                    {classOverview.error || 'Please check your connection and try again.'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOverviewRetryTick((t) => t + 1)}
+                className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white border border-[#fecdd3] hover:bg-neutral-50 text-[10.5px] font-semibold text-neutral-900 cursor-pointer transition"
+              >
+                <RefreshCw className="w-3 h-3" />
+                <span>Retry</span>
+              </button>
+            </div>
+          ) : classOverview.state === 'holiday' ? (
+            /* School Holiday / Non-Working Day State */
+            <div className="bg-[#effaf3] border border-[#c8ecd5] rounded-2xl p-3 flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-white border border-[#c8ecd5] flex items-center justify-center text-[#15803d] shrink-0">
+                <Sparkles className="w-4 h-4 stroke-[2]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[12px] font-bold text-neutral-950 truncate">
+                  {classOverview.holidayTitle || 'School Holiday'}
+                </div>
+                <p className="text-[10.5px] text-[#15803d] font-medium mt-0.5 leading-snug">
+                  No class attendance required today.
+                </p>
+              </div>
+            </div>
+          ) : (
+            /* Live 6 Pastel Attendance Cards: Total, Present, Absent, Leave, Late, Half Day */
+            <div className="space-y-2">
+              <div className="grid grid-cols-3 min-[360px]:grid-cols-6 gap-1.5 min-[360px]:gap-1">
+                {/* 1. Total */}
+                <div className="bg-[#eff6ff] border border-[#bfdbfe] rounded-2xl px-0.5 py-2 sm:py-2.5 text-center flex flex-col items-center justify-center min-w-0 min-h-[68px] sm:min-h-[72px]">
+                  <Users className="w-4 h-4 text-[#2563eb] stroke-[2] shrink-0" />
+                  <div className="text-[15px] sm:text-[16px] font-bold text-neutral-950 leading-none tabular-nums mt-1.5">
+                    {classOverview.counts?.total ?? 0}
+                  </div>
+                  <div className="text-[8.5px] min-[390px]:text-[9px] font-semibold text-[#2563eb] leading-tight mt-1 whitespace-nowrap">
+                    Total
+                  </div>
+                </div>
 
-            {/* Stat 2: Present */}
-            <div className="bg-[#f8f9fa] border border-[#eef0f3] rounded-xl p-1.5 sm:p-2 text-center flex flex-col items-center justify-center min-w-0 h-[66px] sm:h-[70px]">
-              <div className="flex items-center justify-center gap-1 sm:gap-1.5 leading-none">
-                <UserCheck className="w-3.5 h-3.5 text-neutral-800 stroke-[2] shrink-0" />
-                <span className="text-[14px] sm:text-[15px] font-bold text-neutral-900 leading-none">
-                  {classStats.present}
-                </span>
-              </div>
-              <div className="text-[9.5px] sm:text-[10.5px] text-[#4b5563] font-medium leading-tight text-center mt-1.5 w-full whitespace-nowrap truncate">
-                Present
-              </div>
-            </div>
+                {/* 2. Present */}
+                <div className="bg-[#effaf3] border border-[#c8ecd5] rounded-2xl px-0.5 py-2 sm:py-2.5 text-center flex flex-col items-center justify-center min-w-0 min-h-[68px] sm:min-h-[72px]">
+                  <CheckCircle2 className="w-4 h-4 text-[#15803d] stroke-[2] shrink-0" />
+                  <div className="text-[15px] sm:text-[16px] font-bold text-neutral-950 leading-none tabular-nums mt-1.5">
+                    {classOverview.counts?.present ?? 0}
+                  </div>
+                  <div className="text-[8.5px] min-[390px]:text-[9px] font-semibold text-[#15803d] leading-tight mt-1 whitespace-nowrap">
+                    Present
+                  </div>
+                </div>
 
-            {/* Stat 3: Absent */}
-            <div className="bg-[#f8f9fa] border border-[#eef0f3] rounded-xl p-1.5 sm:p-2 text-center flex flex-col items-center justify-center min-w-0 h-[66px] sm:h-[70px]">
-              <div className="flex items-center justify-center gap-1 sm:gap-1.5 leading-none">
-                <UserX className="w-3.5 h-3.5 text-neutral-800 stroke-[2] shrink-0" />
-                <span className="text-[14px] sm:text-[15px] font-bold text-neutral-900 leading-none">
-                  {classStats.absent}
-                </span>
-              </div>
-              <div className="text-[9.5px] sm:text-[10.5px] text-[#4b5563] font-medium leading-tight text-center mt-1.5 w-full whitespace-nowrap truncate">
-                Absent
-              </div>
-            </div>
+                {/* 3. Absent */}
+                <div className="bg-[#fff1f2] border border-[#fecdd3] rounded-2xl px-0.5 py-2 sm:py-2.5 text-center flex flex-col items-center justify-center min-w-0 min-h-[68px] sm:min-h-[72px]">
+                  <XCircle className="w-4 h-4 text-[#dc2626] stroke-[2] shrink-0" />
+                  <div className="text-[15px] sm:text-[16px] font-bold text-neutral-950 leading-none tabular-nums mt-1.5">
+                    {classOverview.counts?.absent ?? 0}
+                  </div>
+                  <div className="text-[8.5px] min-[390px]:text-[9px] font-semibold text-[#dc2626] leading-tight mt-1 whitespace-nowrap">
+                    Absent
+                  </div>
+                </div>
 
-            {/* Stat 4: Leave */}
-            <div className="bg-[#f8f9fa] border border-[#eef0f3] rounded-xl p-1.5 sm:p-2 text-center flex flex-col items-center justify-center min-w-0 h-[66px] sm:h-[70px]">
-              <div className="flex items-center justify-center gap-1 sm:gap-1.5 leading-none">
-                <Clock className="w-3.5 h-3.5 text-neutral-800 stroke-[2] shrink-0" />
-                <span className="text-[14px] sm:text-[15px] font-bold text-neutral-900 leading-none">
-                  {classStats.onLeave}
-                </span>
+                {/* 4. Leave */}
+                <div className="bg-[#fefce8] border border-[#fde68a] rounded-2xl px-0.5 py-2 sm:py-2.5 text-center flex flex-col items-center justify-center min-w-0 min-h-[68px] sm:min-h-[72px]">
+                  <Calendar className="w-4 h-4 text-[#d97706] stroke-[2] shrink-0" />
+                  <div className="text-[15px] sm:text-[16px] font-bold text-neutral-950 leading-none tabular-nums mt-1.5">
+                    {classOverview.counts?.leave ?? 0}
+                  </div>
+                  <div className="text-[8.5px] min-[390px]:text-[9px] font-semibold text-[#b45309] leading-tight mt-1 whitespace-nowrap">
+                    Leave
+                  </div>
+                </div>
+
+                {/* 5. Late */}
+                <div className="bg-[#fff7ed] border border-[#fed7aa] rounded-2xl px-0.5 py-2 sm:py-2.5 text-center flex flex-col items-center justify-center min-w-0 min-h-[68px] sm:min-h-[72px]">
+                  <Clock className="w-4 h-4 text-[#ea580c] stroke-[2] shrink-0" />
+                  <div className="text-[15px] sm:text-[16px] font-bold text-neutral-950 leading-none tabular-nums mt-1.5">
+                    {classOverview.counts?.late ?? 0}
+                  </div>
+                  <div className="text-[8.5px] min-[390px]:text-[9px] font-semibold text-[#c2410c] leading-tight mt-1 whitespace-nowrap">
+                    Late
+                  </div>
+                </div>
+
+                {/* 6. Half Day */}
+                <div className="bg-[#f5f3ff] border border-[#ddd6fe] rounded-2xl px-0.5 py-2 sm:py-2.5 text-center flex flex-col items-center justify-center min-w-0 min-h-[68px] sm:min-h-[72px]">
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="w-4 h-4 text-[#7c3aed] shrink-0"
+                    aria-hidden="true"
+                  >
+                    <circle
+                      cx="12"
+                      cy="12"
+                      r="9"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    />
+                    <path d="M12 3a9 9 0 0 0 0 18V3z" fill="currentColor" />
+                  </svg>
+                  <div className="text-[15px] sm:text-[16px] font-bold text-neutral-950 leading-none tabular-nums mt-1.5">
+                    {classOverview.counts?.halfDay ?? 0}
+                  </div>
+                  <div className="text-[8.5px] min-[390px]:text-[9px] font-semibold text-[#6d28d9] leading-tight mt-1 whitespace-nowrap">
+                    Half Day
+                  </div>
+                </div>
               </div>
-              <div className="text-[9.5px] sm:text-[10.5px] text-[#4b5563] font-medium leading-tight text-center mt-1.5 w-full whitespace-nowrap truncate">
-                Leave
-              </div>
+
+              {/* Unmarked / Partial Attendance Notice (Never fabricate unrecorded statuses) */}
+              {classOverview.state === 'unmarked' && (
+                <div className="flex items-center justify-between gap-2 px-1 pt-0.5">
+                  <span className="text-[10.5px] text-[#6b7280] font-medium">
+                    Attendance not marked yet for today
+                  </span>
+                  {onTakeAttendance && (
+                    <button
+                      type="button"
+                      onClick={onTakeAttendance}
+                      className="text-[10.5px] font-semibold text-neutral-900 hover:underline cursor-pointer shrink-0"
+                    >
+                      Mark now
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {classOverview.state === 'partial' && (
+                <div className="flex items-center justify-between gap-2 px-1 pt-0.5">
+                  <span className="text-[10.5px] text-[#b45309] font-medium">
+                    Partial attendance: {classOverview.markedCount} of {classOverview.counts?.total ?? 0} students marked
+                  </span>
+                  {onTakeAttendance && (
+                    <button
+                      type="button"
+                      onClick={onTakeAttendance}
+                      className="text-[10.5px] font-semibold text-neutral-900 hover:underline cursor-pointer shrink-0"
+                    >
+                      Complete
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
-          </div>
-        </div>
+          )}
+        </section>
 
         {/* F. Recent Activities Section */}
         <div className="bg-white border border-[#e5e7eb] rounded-[20px] sm:rounded-[22px] p-3 sm:p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">

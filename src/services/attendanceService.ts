@@ -3,14 +3,34 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { onAuthStateChanged } from 'firebase/auth';
+import {
+  collection,
+  doc,
+  getDocFromServer,
+  onSnapshot,
+  query,
+  setDoc,
+  where,
+  type Firestore,
+} from 'firebase/firestore';
+import { auth, db } from '../lib/firebase';
+import {
+  CalendarEventDetail,
+  getActiveStaffCalendarContext,
+  StaffIdentityContext,
+  subscribeToStaffCalendarEvents,
+} from './calendarService';
 import {
   formatISTMonthKey,
   formatMonthKeyToMonthYear,
   getNowISO,
+  parseDateKeySafe,
   parseMonthYearToYearMonth,
 } from '../utils/dateTimeUtils';
 
 export type AttendanceStatusCode = 'P' | 'A' | 'L' | 'LT' | 'H';
+const VALID_STATUS_CODES = new Set<AttendanceStatusCode>(['P', 'A', 'L', 'LT', 'H']);
 
 export interface Student {
   id: string;
@@ -250,6 +270,16 @@ export function saveOrUpdateAttendance(
   }
 
   saveAttendanceRecords(records);
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('offsleek_attendance_updated', { detail: record }));
+  }
+
+  // Persist to shared Firestore collection when Firebase Auth session is active
+  void syncAttendanceRecordToFirestore(record).catch(() => {
+    // Error details are already recorded via handleFirestoreError; local state remains intact
+  });
+
   return record;
 }
 
@@ -748,5 +778,682 @@ export function publishStudentMonthlyAttendance(
     success: false,
     alreadyPublished: false,
     message: 'Student record could not be found.',
+  };
+}
+
+// -------------------------------------------------------------
+// REAL-TIME FIRESTORE ATTENDANCE OVERVIEW & CONNECTION HELPERS
+// -------------------------------------------------------------
+
+export enum AttendanceFirestoreOperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface AttendanceFirestoreErrorInfo {
+  error: string;
+  operationType: AttendanceFirestoreOperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  };
+}
+
+export function buildAttendanceFirestoreErrorInfo(
+  error: unknown,
+  operationType: AttendanceFirestoreOperationType,
+  path: string | null
+): AttendanceFirestoreErrorInfo {
+  return {
+    error: error instanceof Error ? error.message : String(error),
+    operationType,
+    path,
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo:
+        auth.currentUser?.providerData?.map((provider) => ({
+          providerId: provider.providerId,
+          email: provider.email,
+        })) || [],
+    },
+  };
+}
+
+export function handleAttendanceFirestoreError(
+  error: unknown,
+  operationType: AttendanceFirestoreOperationType,
+  path: string | null
+): never {
+  const errInfo = buildAttendanceFirestoreErrorInfo(error, operationType, path);
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
+let connectionValidated = false;
+
+export async function validateAttendanceFirestoreConnection(
+  firestoreDb: Firestore = db
+): Promise<void> {
+  if (connectionValidated) return;
+  connectionValidated = true;
+  try {
+    await getDocFromServer(doc(firestoreDb, 'test', 'connection'));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.error('Please check your Firebase configuration.');
+    }
+  }
+}
+
+export interface TodayClassOverviewCounts {
+  total: number;
+  present: number;
+  absent: number;
+  leave: number;
+  late: number;
+  halfDay: number;
+}
+
+export type TodayClassOverviewStateType =
+  | 'loading'
+  | 'recorded'
+  | 'partial'
+  | 'unmarked'
+  | 'holiday'
+  | 'error';
+
+export interface TodayClassOverviewSnapshot {
+  loading: boolean;
+  state: TodayClassOverviewStateType;
+  counts: TodayClassOverviewCounts | null;
+  markedCount: number;
+  unmarkedCount: number;
+  dateKey: string;
+  gradeScope: string;
+  authorizedGrades: string[];
+  holidayTitle: string | null;
+  isLiveFirestore: boolean;
+  requiresFirebaseAuth: boolean;
+  error: string | null;
+  lastUpdatedAt: string | null;
+}
+
+export const ATTENDANCE_COLLECTION_NAME = 'attendanceRecords';
+
+export function getAuthorizedAttendanceGrades(staff: StaffIdentityContext): string[] {
+  const knownAttendanceGrades = new Set(ASSIGNED_CLASSES.map((c) => c.name));
+  const staffGrades = staff.assignedClasses.filter((g) => knownAttendanceGrades.has(g));
+  if (staffGrades.length > 0) return staffGrades;
+  return ASSIGNED_CLASSES.map((c) => c.name);
+}
+
+export function getDefaultAttendanceGradeForStaff(staff: StaffIdentityContext): string {
+  const authorized = getAuthorizedAttendanceGrades(staff);
+  return authorized[0] || ASSIGNED_CLASSES[0].name;
+}
+
+function normalizeStatusCode(raw: unknown): AttendanceStatusCode | null {
+  if (typeof raw !== 'string') return null;
+  const normalized = raw.trim().toUpperCase() as AttendanceStatusCode;
+  return VALID_STATUS_CODES.has(normalized) ? normalized : null;
+}
+
+export function mapFirestoreAttendanceDoc(
+  docId: string,
+  data: Record<string, unknown>,
+  fallbackSchoolId: string
+): AttendanceRecord | null {
+  const schoolId =
+    typeof data.schoolId === 'string' && data.schoolId.trim()
+      ? data.schoolId.trim()
+      : fallbackSchoolId;
+  const grade = typeof data.grade === 'string' ? data.grade.trim() : '';
+  const dateKey = typeof data.dateKey === 'string' ? data.dateKey.trim() : '';
+
+  if (!grade || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+    return null;
+  }
+
+  const rawStudents = Array.isArray(data.students) ? data.students : [];
+  const students: Student[] = rawStudents
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+    .map((item, idx) => ({
+      id: typeof item.id === 'string' && item.id.trim() ? item.id.trim() : `${grade}-${idx + 1}`,
+      rollNo: typeof item.rollNo === 'string' ? item.rollNo : String(idx + 1).padStart(2, '0'),
+      name: typeof item.name === 'string' ? item.name : `Student ${idx + 1}`,
+      avatar: typeof item.avatar === 'string' ? item.avatar : '',
+      status: normalizeStatusCode(item.status),
+    }));
+
+  const presentFromStudents = students.filter((s) => s.status === 'P').length;
+  const absentFromStudents = students.filter((s) => s.status === 'A').length;
+  const leaveFromStudents = students.filter((s) => s.status === 'L').length;
+  const lateFromStudents = students.filter((s) => s.status === 'LT').length;
+  const halfDayFromStudents = students.filter((s) => s.status === 'H').length;
+
+  const hasStudents = students.length > 0;
+  const presentCount = hasStudents
+    ? presentFromStudents
+    : Math.max(0, Number(data.presentCount) || 0);
+  const absentCount = hasStudents
+    ? absentFromStudents
+    : Math.max(0, Number(data.absentCount) || 0);
+  const onLeaveCount = hasStudents
+    ? leaveFromStudents
+    : Math.max(0, Number(data.onLeaveCount) || 0);
+  const lateCount = hasStudents
+    ? lateFromStudents
+    : Math.max(0, Number(data.lateCount) || 0);
+  const halfDayCount = hasStudents
+    ? halfDayFromStudents
+    : Math.max(0, Number(data.halfDayCount) || 0);
+  const totalStudents = hasStudents
+    ? students.length
+    : Math.max(
+        0,
+        Number(data.totalStudents) ||
+          presentCount + absentCount + onLeaveCount + lateCount + halfDayCount
+      );
+
+  return {
+    id: docId,
+    schoolId,
+    schoolName:
+      typeof data.schoolName === 'string' && data.schoolName.trim()
+        ? data.schoolName.trim()
+        : 'Greenwood International School',
+    grade,
+    dateStr: typeof data.dateStr === 'string' ? data.dateStr : dateKey,
+    dateKey,
+    teacherName:
+      typeof data.teacherName === 'string' && data.teacherName.trim()
+        ? data.teacherName.trim()
+        : 'Ms. Priya Sharma',
+    totalStudents,
+    presentCount,
+    absentCount,
+    onLeaveCount,
+    lateCount,
+    halfDayCount,
+    students,
+    savedAt: typeof data.savedAt === 'string' ? data.savedAt : '',
+    createdAt: typeof data.createdAt === 'string' ? data.createdAt : undefined,
+    updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : undefined,
+  };
+}
+
+export function getTodayHolidayInfo(
+  dateKey: string,
+  schoolId: string,
+  gradeScope: string,
+  calendarEvents: CalendarEventDetail[]
+): { isHoliday: boolean; holidayTitle: string | null } {
+  const matchedEvent = calendarEvents.find((ev) => {
+    if (ev.schoolId !== schoolId || ev.category !== 'Holiday') return false;
+    if (ev.status === 'draft' || ev.status === 'cancelled') return false;
+    const endKey = ev.endDateKey && ev.endDateKey >= ev.dateKey ? ev.endDateKey : ev.dateKey;
+    if (dateKey < ev.dateKey || dateKey > endKey) return false;
+    if (gradeScope !== 'ALL' && ev.targetClasses && ev.targetClasses.length > 0) {
+      const normalizedTarget = ev.targetClasses.map((c) => c.trim().toLowerCase());
+      const matchesAll = normalizedTarget.some(
+        (c) => c === 'all' || c === 'all classes' || c === 'school-wide'
+      );
+      if (!matchesAll && !normalizedTarget.includes(gradeScope.trim().toLowerCase())) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  if (matchedEvent) {
+    return { isHoliday: true, holidayTitle: matchedEvent.title };
+  }
+
+  // Sunday (0) in school calendar is a non-working weekend holiday
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+    const dow = parseDateKeySafe(dateKey).getUTCDay();
+    if (dow === 0) {
+      return { isHoliday: true, holidayTitle: 'Sunday (Weekend Holiday)' };
+    }
+  }
+
+  return { isHoliday: false, holidayTitle: null };
+}
+
+export function computeTodayClassOverview(params: {
+  records: AttendanceRecord[];
+  staff: StaffIdentityContext;
+  dateKey: string;
+  gradeScope: string;
+  calendarEvents: CalendarEventDetail[];
+  isLiveFirestore: boolean;
+  requiresFirebaseAuth: boolean;
+}): TodayClassOverviewSnapshot {
+  const {
+    records,
+    staff,
+    dateKey,
+    gradeScope,
+    calendarEvents,
+    isLiveFirestore,
+    requiresFirebaseAuth,
+  } = params;
+
+  const authorizedGrades = getAuthorizedAttendanceGrades(staff);
+  const scopedGrades =
+    gradeScope === 'ALL'
+      ? authorizedGrades
+      : authorizedGrades.includes(gradeScope)
+        ? [gradeScope]
+        : [];
+
+  const matchingRecords = records
+    .filter(
+      (r) =>
+        r.schoolId === staff.schoolId &&
+        r.dateKey === dateKey &&
+        scopedGrades.includes(r.grade)
+    )
+    .slice()
+    .sort((a, b) => (a.updatedAt || a.savedAt || '').localeCompare(b.updatedAt || b.savedAt || ''));
+
+  if (matchingRecords.length === 0) {
+    const holidayInfo = getTodayHolidayInfo(dateKey, staff.schoolId, gradeScope, calendarEvents);
+    if (holidayInfo.isHoliday) {
+      return {
+        loading: false,
+        state: 'holiday',
+        counts: null,
+        markedCount: 0,
+        unmarkedCount: 0,
+        dateKey,
+        gradeScope,
+        authorizedGrades,
+        holidayTitle: holidayInfo.holidayTitle,
+        isLiveFirestore,
+        requiresFirebaseAuth,
+        error: null,
+        lastUpdatedAt: null,
+      };
+    }
+
+    // No attendance marked yet today: compute genuine roster total across scoped grades, 0 for all statuses
+    const rosterStudents = new Map<string, boolean>();
+    for (const grade of scopedGrades) {
+      for (const st of getInitialStudentsForGrade(grade)) {
+        const key = st.id ? st.id.trim() : `${grade}::${st.rollNo}`;
+        rosterStudents.set(key, true);
+      }
+    }
+    const rosterTotal = rosterStudents.size;
+
+    return {
+      loading: false,
+      state: 'unmarked',
+      counts: {
+        total: rosterTotal,
+        present: 0,
+        absent: 0,
+        leave: 0,
+        late: 0,
+        halfDay: 0,
+      },
+      markedCount: 0,
+      unmarkedCount: rosterTotal,
+      dateKey,
+      gradeScope,
+      authorizedGrades,
+      holidayTitle: null,
+      isLiveFirestore,
+      requiresFirebaseAuth,
+      error: null,
+      lastUpdatedAt: null,
+    };
+  }
+
+  // Deduplicate student-level records across matching records; add unmarked roster for any unscored scoped grade
+  const studentStatusMap = new Map<string, AttendanceStatusCode | null>();
+  const coveredGrades = new Set<string>();
+  let aggregateFallbackTotal = 0;
+  let aggregateFallbackPresent = 0;
+  let aggregateFallbackAbsent = 0;
+  let aggregateFallbackLeave = 0;
+  let aggregateFallbackLate = 0;
+  let aggregateFallbackHalfDay = 0;
+  let hasAggregateOnlyRecord = false;
+  let lastUpdatedAt: string | null = null;
+
+  for (const rec of matchingRecords) {
+    coveredGrades.add(rec.grade);
+    const ts = rec.updatedAt || rec.savedAt || null;
+    if (ts && (!lastUpdatedAt || ts > lastUpdatedAt)) {
+      lastUpdatedAt = ts;
+    }
+
+    if (Array.isArray(rec.students) && rec.students.length > 0) {
+      for (const st of rec.students) {
+        const key = st.id && st.id.trim() ? st.id.trim() : `${rec.grade}::${st.rollNo}`;
+        studentStatusMap.set(key, normalizeStatusCode(st.status));
+      }
+    } else if (rec.totalStudents > 0) {
+      hasAggregateOnlyRecord = true;
+      aggregateFallbackTotal += Math.max(0, rec.totalStudents);
+      aggregateFallbackPresent += Math.max(0, rec.presentCount);
+      aggregateFallbackAbsent += Math.max(0, rec.absentCount);
+      aggregateFallbackLeave += Math.max(0, rec.onLeaveCount);
+      aggregateFallbackLate += Math.max(0, rec.lateCount || 0);
+      aggregateFallbackHalfDay += Math.max(0, rec.halfDayCount || 0);
+    }
+  }
+
+  // Include unmarked roster students from any scoped grade that does not yet have a record today
+  for (const grade of scopedGrades) {
+    if (!coveredGrades.has(grade)) {
+      for (const st of getInitialStudentsForGrade(grade)) {
+        const key = st.id && st.id.trim() ? st.id.trim() : `${grade}::${st.rollNo}`;
+        if (!studentStatusMap.has(key)) {
+          studentStatusMap.set(key, null);
+        }
+      }
+    }
+  }
+
+  let present = hasAggregateOnlyRecord ? aggregateFallbackPresent : 0;
+  let absent = hasAggregateOnlyRecord ? aggregateFallbackAbsent : 0;
+  let leave = hasAggregateOnlyRecord ? aggregateFallbackLeave : 0;
+  let late = hasAggregateOnlyRecord ? aggregateFallbackLate : 0;
+  let halfDay = hasAggregateOnlyRecord ? aggregateFallbackHalfDay : 0;
+  let unmarkedCount = 0;
+
+  for (const status of studentStatusMap.values()) {
+    switch (status) {
+      case 'P':
+        present += 1;
+        break;
+      case 'A':
+        absent += 1;
+        break;
+      case 'L':
+        leave += 1;
+        break;
+      case 'LT':
+        late += 1;
+        break;
+      case 'H':
+        halfDay += 1;
+        break;
+      default:
+        unmarkedCount += 1;
+        break;
+    }
+  }
+
+  const total = studentStatusMap.size + (hasAggregateOnlyRecord ? aggregateFallbackTotal : 0);
+  const markedCount = present + absent + leave + late + halfDay;
+
+  let state: TodayClassOverviewStateType = 'recorded';
+  if (markedCount === 0) {
+    state = 'unmarked';
+  } else if (unmarkedCount > 0 || markedCount < total) {
+    state = 'partial';
+  }
+
+  return {
+    loading: false,
+    state,
+    counts: {
+      total,
+      present,
+      absent,
+      leave,
+      late,
+      halfDay,
+    },
+    markedCount,
+    unmarkedCount,
+    dateKey,
+    gradeScope,
+    authorizedGrades,
+    holidayTitle: null,
+    isLiveFirestore,
+    requiresFirebaseAuth,
+    error: null,
+    lastUpdatedAt,
+  };
+}
+
+export async function syncAttendanceRecordToFirestore(
+  record: AttendanceRecord,
+  firestoreDb: Firestore = db
+): Promise<boolean> {
+  if (!auth?.currentUser || !firestoreDb) return false;
+  const docPath = `schools/${record.schoolId}/${ATTENDANCE_COLLECTION_NAME}/${record.id}`;
+  try {
+    const docRef = doc(
+      firestoreDb,
+      'schools',
+      record.schoolId,
+      ATTENDANCE_COLLECTION_NAME,
+      record.id
+    );
+    const payload = JSON.parse(
+      JSON.stringify({
+        ...record,
+        updatedByUid: auth.currentUser.uid,
+      })
+    );
+    await setDoc(docRef, payload, { merge: true });
+    return true;
+  } catch (error) {
+    handleAttendanceFirestoreError(error, AttendanceFirestoreOperationType.WRITE, docPath);
+  }
+}
+
+export function subscribeToTodayClassOverview(
+  params: {
+    dateKey: string;
+    gradeScope?: string;
+    staff?: StaffIdentityContext;
+    firestoreDb?: Firestore;
+  },
+  onUpdate: (snapshot: TodayClassOverviewSnapshot) => void
+): () => void {
+  const staff = params.staff || getActiveStaffCalendarContext();
+  const authorizedGrades = getAuthorizedAttendanceGrades(staff);
+  const gradeScope = params.gradeScope || getDefaultAttendanceGradeForStaff(staff);
+  const dateKey = params.dateKey;
+  const firestoreDb = params.firestoreDb || db;
+
+  let latestCalendarEvents: CalendarEventDetail[] = [];
+  let latestFirestoreRecords: AttendanceRecord[] | null = null;
+  let isDisposed = false;
+  let unsubscribeFirestore: (() => void) | null = null;
+
+  const emitLocalSnapshot = () => {
+    if (isDisposed) return;
+    const localRecords = getAttendanceRecords();
+    onUpdate(
+      computeTodayClassOverview({
+        records: localRecords,
+        staff,
+        dateKey,
+        gradeScope,
+        calendarEvents: latestCalendarEvents,
+        isLiveFirestore: false,
+        requiresFirebaseAuth: !auth?.currentUser,
+      })
+    );
+  };
+
+  const emitFirestoreSnapshot = () => {
+    if (isDisposed || latestFirestoreRecords === null) return;
+    onUpdate(
+      computeTodayClassOverview({
+        records: latestFirestoreRecords,
+        staff,
+        dateKey,
+        gradeScope,
+        calendarEvents: latestCalendarEvents,
+        isLiveFirestore: true,
+        requiresFirebaseAuth: false,
+      })
+    );
+  };
+
+  const detachFirestore = () => {
+    if (unsubscribeFirestore) {
+      unsubscribeFirestore();
+      unsubscribeFirestore = null;
+    }
+    latestFirestoreRecords = null;
+  };
+
+  const attachFirestore = () => {
+    detachFirestore();
+    if (isDisposed) return;
+
+    void validateAttendanceFirestoreConnection(firestoreDb);
+
+    onUpdate({
+      loading: true,
+      state: 'loading',
+      counts: null,
+      markedCount: 0,
+      unmarkedCount: 0,
+      dateKey,
+      gradeScope,
+      authorizedGrades,
+      holidayTitle: null,
+      isLiveFirestore: false,
+      requiresFirebaseAuth: false,
+      error: null,
+      lastUpdatedAt: null,
+    });
+
+    const collectionPath = `schools/${staff.schoolId}/${ATTENDANCE_COLLECTION_NAME}`;
+    const attendanceRef = collection(
+      firestoreDb,
+      'schools',
+      staff.schoolId,
+      ATTENDANCE_COLLECTION_NAME
+    );
+    const attendanceQuery = query(attendanceRef, where('dateKey', '==', dateKey));
+
+    unsubscribeFirestore = onSnapshot(
+      attendanceQuery,
+      (querySnapshot) => {
+        const docs: AttendanceRecord[] = [];
+        querySnapshot.forEach((docSnap) => {
+          const mapped = mapFirestoreAttendanceDoc(
+            docSnap.id,
+            docSnap.data() as Record<string, unknown>,
+            staff.schoolId
+          );
+          if (mapped) docs.push(mapped);
+        });
+        latestFirestoreRecords = docs;
+        emitFirestoreSnapshot();
+      },
+      (error) => {
+        const errInfo = buildAttendanceFirestoreErrorInfo(
+          error,
+          AttendanceFirestoreOperationType.GET,
+          collectionPath
+        );
+        console.error('Firestore Error: ', JSON.stringify(errInfo));
+        const isPermissionError =
+          error && typeof error === 'object' && 'code' in error && error.code === 'permission-denied';
+
+        if (!isDisposed) {
+          onUpdate({
+            loading: false,
+            state: 'error',
+            counts: null,
+            markedCount: 0,
+            unmarkedCount: 0,
+            dateKey,
+            gradeScope,
+            authorizedGrades,
+            holidayTitle: null,
+            isLiveFirestore: false,
+            requiresFirebaseAuth: isPermissionError,
+            error: isPermissionError
+              ? 'You do not have permission to view live class attendance.'
+              : error?.message || 'Unable to load today’s class attendance.',
+            lastUpdatedAt: null,
+          });
+        }
+      }
+    );
+  };
+
+  // Subscribe to school calendar events for live Holiday detection
+  const unsubscribeCalendar = subscribeToStaffCalendarEvents(staff, (events) => {
+    latestCalendarEvents = events;
+    if (latestFirestoreRecords !== null) {
+      emitFirestoreSnapshot();
+    } else if (!auth?.currentUser) {
+      emitLocalSnapshot();
+    }
+  });
+
+  // React immediately to local saves/edits or cross-tab storage updates when not backed by live auth
+  const handleLocalAttendanceUpdate = () => {
+    if (!auth?.currentUser) {
+      emitLocalSnapshot();
+    }
+  };
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('offsleek_attendance_updated', handleLocalAttendanceUpdate);
+    window.addEventListener('storage', handleLocalAttendanceUpdate);
+  }
+
+  // Attach Firestore onSnapshot when authenticated; cleanly downgrade/upgrade on auth state change
+  let unsubscribeAuth: (() => void) | null = null;
+  if (auth) {
+    if (auth.currentUser) {
+      attachFirestore();
+    } else {
+      emitLocalSnapshot();
+    }
+    unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (isDisposed) return;
+      if (user) {
+        attachFirestore();
+      } else {
+        detachFirestore();
+        emitLocalSnapshot();
+      }
+    });
+  } else {
+    emitLocalSnapshot();
+  }
+
+  return () => {
+    isDisposed = true;
+    detachFirestore();
+    unsubscribeCalendar();
+    if (unsubscribeAuth) unsubscribeAuth();
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('offsleek_attendance_updated', handleLocalAttendanceUpdate);
+      window.removeEventListener('storage', handleLocalAttendanceUpdate);
+    }
   };
 }
