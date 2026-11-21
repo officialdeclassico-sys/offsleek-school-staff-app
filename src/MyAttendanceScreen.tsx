@@ -3,28 +3,35 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  AlertCircle,
+  Calendar,
+  CalendarDays,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  Calendar,
-  Check,
-  UserCheck,
-  UserX,
   Clock,
   LogIn,
   LogOut,
-  CalendarDays,
-  ChevronDown,
+  Timer,
+  XCircle,
 } from 'lucide-react';
 import StaffStatusBar from './components/StaffStatusBar';
 import StaffBottomNav from './components/StaffBottomNav';
-import { getStaffAttendance, StaffMonthlyAttendance } from './services/staffAttendanceService';
 import {
-  useISTCurrentDate,
+  checkInStaffAttendance,
+  checkOutStaffAttendance,
+  computeSessionElapsedSeconds,
+  formatDurationHHMMSS,
+  StaffDayAttendance,
+  StaffMonthlyAttendance,
+  subscribeToStaffPersonalAttendance,
+} from './services/staffAttendanceService';
+import {
   getCalendarLeadingPaddingDays,
-  getRecentAndSurroundingMonthYears,
-  shiftMonthYear,
+  getNow,
+  useISTCurrentDate,
 } from './utils/dateTimeUtils';
 
 interface MyAttendanceScreenProps {
@@ -35,6 +42,23 @@ interface MyAttendanceScreenProps {
   onNavigateProfile: () => void;
 }
 
+function getSelectedStatusBadgeClasses(status: StaffDayAttendance['status']): string {
+  switch (status) {
+    case 'Present':
+      return 'text-[#15803d] bg-[#effaf3] border-[#c8ecd5]';
+    case 'Absent':
+      return 'text-[#dc2626] bg-[#fff1f2] border-[#fecdd3]';
+    case 'Leave':
+      return 'text-[#b45309] bg-[#fefce8] border-[#fde68a]';
+    case 'Late':
+      return 'text-[#c2410c] bg-[#fff7ed] border-[#fed7aa]';
+    case 'Half Day':
+      return 'text-[#6d28d9] bg-[#f5f3ff] border-[#ddd6fe]';
+    default:
+      return 'text-neutral-600 bg-neutral-100 border-neutral-200';
+  }
+}
+
 export default function MyAttendanceScreen({
   onNavigateHome,
   onNavigateAttendance,
@@ -42,299 +66,390 @@ export default function MyAttendanceScreen({
   onNavigateMyRequests,
   onNavigateProfile,
 }: MyAttendanceScreenProps) {
-  const { dayOfMonth, monthYearStr } = useISTCurrentDate();
+  const { dayOfMonth, monthYearStr, todayDateKey } = useISTCurrentDate();
   const [currentMonth, setCurrentMonth] = useState<string>(() => monthYearStr);
   const [isCustomMonth, setIsCustomMonth] = useState(false);
-  const [showMonthDropdown, setShowMonthDropdown] = useState(false);
+  const [selectedDay, setSelectedDay] = useState<number>(() => dayOfMonth);
 
+  const [attendanceData, setAttendanceData] = useState<StaffMonthlyAttendance | null>(null);
+  const [actionLoading, setActionLoading] = useState<'checkin' | 'checkout' | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [nowTickMs, setNowTickMs] = useState<number>(() => getNow().getTime());
+
+  // Automatically follow current IST month across midnight/month boundaries unless user selected a past operational month
   useEffect(() => {
     if (!isCustomMonth) {
       setCurrentMonth(monthYearStr);
     }
   }, [monthYearStr, isCustomMonth]);
 
-  const monthOptions = getRecentAndSurroundingMonthYears();
-  const attendanceData: StaffMonthlyAttendance = getStaffAttendance(currentMonth);
-  const leadingPaddingDays = getCalendarLeadingPaddingDays(
-    attendanceData.year,
-    attendanceData.monthIndex
-  );
-  const [selectedDay, setSelectedDay] = useState<number>(() => dayOfMonth);
+  // Subscribe to real-time personal attendance + calendar holidays + midnight rollover
+  useEffect(() => {
+    const unsubscribe = subscribeToStaffPersonalAttendance(
+      {
+        month: currentMonth,
+        todayDateKey,
+      },
+      (view) => {
+        setAttendanceData(view);
+        if (view.month !== currentMonth) {
+          setCurrentMonth(view.month);
+          setIsCustomMonth(view.month !== monthYearStr);
+        }
+      }
+    );
+    return unsubscribe;
+  }, [currentMonth, todayDateKey, monthYearStr]);
+
+  // 1-second timer tick ONLY while actively checked in (stops immediately after check-out)
+  const isActivelyCheckedIn = attendanceData?.todayRecord.sessionState === 'CHECKED_IN';
+  useEffect(() => {
+    setNowTickMs(getNow().getTime());
+    if (!isActivelyCheckedIn) return;
+    const intervalId = window.setInterval(() => {
+      setNowTickMs(getNow().getTime());
+    }, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [isActivelyCheckedIn, attendanceData?.todayRecord.checkInAtMs]);
+
+  // Keep selected day synchronized on current IST day changes and valid within month length
+  useEffect(() => {
+    if (!isCustomMonth && currentMonth === monthYearStr) {
+      setSelectedDay(dayOfMonth);
+    }
+  }, [todayDateKey, dayOfMonth, monthYearStr, currentMonth, isCustomMonth]);
 
   useEffect(() => {
-    if (currentMonth === monthYearStr) {
-      setSelectedDay(dayOfMonth);
-    } else if (selectedDay > attendanceData.days.length) {
+    if (!attendanceData) return;
+    if (selectedDay > attendanceData.days.length || selectedDay < 1) {
       setSelectedDay(1);
     }
-  }, [currentMonth, monthYearStr, dayOfMonth, attendanceData.days.length]);
+  }, [attendanceData, selectedDay]);
 
-  const selectedRecord =
-    attendanceData.days.find((d) => d.day === selectedDay) ||
-    attendanceData.days[0];
+  const leadingPaddingDays = useMemo(() => {
+    if (!attendanceData) return [];
+    return getCalendarLeadingPaddingDays(attendanceData.year, attendanceData.monthIndex);
+  }, [attendanceData]);
+
+  const selectedRecord: StaffDayAttendance | null = useMemo(() => {
+    if (!attendanceData || attendanceData.days.length === 0) return null;
+    return (
+      attendanceData.days.find((d) => d.day === selectedDay) ||
+      attendanceData.days[0]
+    );
+  }, [attendanceData, selectedDay]);
+
+  const liveElapsedSeconds = useMemo(() => {
+    if (!attendanceData) return 0;
+    const rec = attendanceData.todayRecord.record;
+    if (!rec) return 0;
+    return computeSessionElapsedSeconds(rec, nowTickMs);
+  }, [attendanceData, nowTickMs]);
+
+  const formattedSessionTimer = useMemo(
+    () => formatDurationHHMMSS(liveElapsedSeconds),
+    [liveElapsedSeconds]
+  );
+
+  const handleCheckIn = async () => {
+    if (!attendanceData?.todayRecord.canCheckIn || actionLoading) return;
+    setActionError(null);
+    setActionLoading('checkin');
+    try {
+      await checkInStaffAttendance();
+      setNowTickMs(getNow().getTime());
+      if (currentMonth === monthYearStr) {
+        setSelectedDay(dayOfMonth);
+      }
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to record check-in.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleCheckOut = async () => {
+    if (!attendanceData?.todayRecord.canCheckOut || actionLoading) return;
+    setActionError(null);
+    setActionLoading('checkout');
+    try {
+      await checkOutStaffAttendance();
+      setNowTickMs(getNow().getTime());
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to record check-out.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handlePrevMonth = () => {
+    if (!attendanceData?.prevOperationalMonth) return;
+    const prev = attendanceData.prevOperationalMonth;
+    setIsCustomMonth(prev !== monthYearStr);
+    setCurrentMonth(prev);
+    setSelectedDay(1);
+  };
+
+  const handleNextMonth = () => {
+    if (!attendanceData?.nextOperationalMonth) return;
+    const next = attendanceData.nextOperationalMonth;
+    setIsCustomMonth(next !== monthYearStr);
+    setCurrentMonth(next);
+    setSelectedDay(next === monthYearStr ? dayOfMonth : 1);
+  };
+
+  if (!attendanceData) {
+    return (
+      <div className="relative w-full h-full bg-white flex flex-col justify-between overflow-hidden select-none text-neutral-900 font-sans">
+        <StaffStatusBar />
+        <div className="flex-1 flex items-center justify-center text-xs text-neutral-500">
+          Loading attendance records...
+        </div>
+        <StaffBottomNav
+          activeTab="Home"
+          onNavigateHome={onNavigateHome}
+          onNavigateAttendance={onNavigateAttendance}
+          onNavigateAnnouncements={onNavigateAnnouncements}
+          onNavigateMyRequests={onNavigateMyRequests}
+          onNavigateProfile={onNavigateProfile}
+        />
+      </div>
+    );
+  }
+
+  const { todayRecord, summary } = attendanceData;
 
   return (
     <div className="relative w-full h-full bg-white flex flex-col justify-between overflow-hidden select-none text-neutral-900 font-sans">
-      
-      {/* Top Status Bar with Dynamic Island */}
+      {/* Top Status Bar */}
       <StaffStatusBar />
 
       {/* Main Scrollable Content */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-3.5 sm:px-4.5 pt-1 pb-4 space-y-3.5">
-        
-        {/* Header: [Chevron Back] [My Attendance / View your attendance records] [Month Selector] */}
-        <div className="flex items-center justify-between pt-0.5">
-          <div className="flex items-start gap-1.5 min-w-0">
-            <button
-              type="button"
-              onClick={onNavigateHome}
-              className="p-1 -ml-1 text-neutral-800 hover:text-black active:scale-95 transition cursor-pointer shrink-0 mt-0.5 rounded-md hover:bg-neutral-100/60"
-              aria-label="Back to Home"
-            >
-              <ChevronLeft className="w-5 h-5 text-neutral-900 stroke-[2.2]" />
-            </button>
-            <div className="min-w-0">
-              <h1 className="text-[21px] sm:text-[23px] font-bold text-neutral-900 tracking-tight leading-tight">
-                My Attendance
-              </h1>
-              <p className="text-[12px] sm:text-[12.5px] text-[#717684] font-normal mt-0.5">
-                View your attendance records
-              </p>
-            </div>
-          </div>
-
-          {/* Month Dropdown Selector Button */}
-          <div className="relative shrink-0">
-            <button
-              type="button"
-              onClick={() => setShowMonthDropdown((prev) => !prev)}
-              className="bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-full px-3 py-1.5 text-[12px] font-semibold text-neutral-900 flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
-            >
-              <span>{currentMonth}</span>
-              <ChevronDown className="w-3.5 h-3.5 text-neutral-500" />
-            </button>
-            {showMonthDropdown && (
-              <div className="absolute right-0 top-full mt-1 w-40 bg-white border border-[#e5e7eb] rounded-xl shadow-lg py-1 z-30">
-                {monthOptions.map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => {
-                      setIsCustomMonth(m !== monthYearStr);
-                      setCurrentMonth(m);
-                      setShowMonthDropdown(false);
-                    }}
-                    className={`w-full text-left px-3 py-1.5 text-[12px] transition cursor-pointer ${
-                      currentMonth === m
-                        ? 'bg-black text-white font-bold'
-                        : 'text-neutral-700 hover:bg-neutral-100'
-                    }`}
-                  >
-                    {m}
-                  </button>
-                ))}
-              </div>
-            )}
+        {/* 1. Page Header (No month dropdown beside heading) */}
+        <div className="flex items-start gap-1.5 pt-0.5">
+          <button
+            type="button"
+            onClick={onNavigateHome}
+            className="p-1 -ml-1 text-neutral-800 hover:text-black active:scale-95 transition cursor-pointer shrink-0 mt-0.5 rounded-md hover:bg-neutral-100/60"
+            aria-label="Back to Home"
+          >
+            <ChevronLeft className="w-5 h-5 text-neutral-900 stroke-[2.2]" />
+          </button>
+          <div className="min-w-0">
+            <h1 className="text-[21px] sm:text-[23px] font-bold text-neutral-900 tracking-tight leading-tight">
+              My Attendance
+            </h1>
+            <p className="text-[12px] sm:text-[12.5px] text-[#717684] font-normal mt-0.5">
+              View your attendance records
+            </p>
           </div>
         </div>
 
-        {/* Four Summary Cards Grid */}
-        <div className="grid grid-cols-4 gap-2">
-          {/* Card 1: Present */}
-          <div className="bg-[#ecfdf5]/70 border border-emerald-200/80 rounded-2xl p-2.5 sm:p-3 flex flex-col justify-between">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-700 mb-2">
-              <CalendarDays className="w-4 h-4 stroke-[2]" />
+        {/* 2. Five Attendance Summary Boxes in One Single Horizontal Row on Mobile */}
+        <div
+          className="grid grid-cols-5 gap-1.5"
+          aria-label="Monthly attendance summary"
+        >
+          {/* 1. Present (Green) */}
+          <div className="bg-[#effaf3] border border-[#c8ecd5] rounded-2xl px-0.5 py-2 sm:py-2.5 text-center flex flex-col items-center justify-center min-w-0 min-h-[68px] sm:min-h-[72px]">
+            <CheckCircle2 className="w-4 h-4 text-[#15803d] stroke-[2] shrink-0" />
+            <div className="text-[15px] sm:text-[16px] font-bold text-neutral-950 leading-none tabular-nums mt-1.5">
+              {summary.present}
             </div>
-            <div>
-              <div className="text-[17px] sm:text-[20px] font-bold text-neutral-900 leading-none">
-                {attendanceData.summary.present}
-              </div>
-              <div className="text-[11px] text-[#065f46] font-medium mt-1">Present</div>
-            </div>
-          </div>
-
-          {/* Card 2: Absent */}
-          <div className="bg-[#fef2f2]/70 border border-rose-200/80 rounded-2xl p-2.5 sm:p-3 flex flex-col justify-between">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-rose-100 flex items-center justify-center text-rose-700 mb-2">
-              <UserX className="w-4 h-4 stroke-[2]" />
-            </div>
-            <div>
-              <div className="text-[17px] sm:text-[20px] font-bold text-neutral-900 leading-none">
-                {attendanceData.summary.absent}
-              </div>
-              <div className="text-[11px] text-[#991b1b] font-medium mt-1">Absent</div>
+            <div className="text-[9px] min-[390px]:text-[9.5px] font-semibold text-[#15803d] leading-tight mt-1 whitespace-nowrap">
+              Present
             </div>
           </div>
 
-          {/* Card 3: Leave */}
-          <div className="bg-[#fffbeb]/70 border border-amber-200/80 rounded-2xl p-2.5 sm:p-3 flex flex-col justify-between">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-amber-100 flex items-center justify-center text-amber-700 mb-2">
-              <Clock className="w-4 h-4 stroke-[2]" />
+          {/* 2. Absent (Red) */}
+          <div className="bg-[#fff1f2] border border-[#fecdd3] rounded-2xl px-0.5 py-2 sm:py-2.5 text-center flex flex-col items-center justify-center min-w-0 min-h-[68px] sm:min-h-[72px]">
+            <XCircle className="w-4 h-4 text-[#dc2626] stroke-[2] shrink-0" />
+            <div className="text-[15px] sm:text-[16px] font-bold text-neutral-950 leading-none tabular-nums mt-1.5">
+              {summary.absent}
             </div>
-            <div>
-              <div className="text-[17px] sm:text-[20px] font-bold text-neutral-900 leading-none">
-                {attendanceData.summary.leave}
-              </div>
-              <div className="text-[11px] text-[#92400e] font-medium mt-1">Leave</div>
+            <div className="text-[9px] min-[390px]:text-[9.5px] font-semibold text-[#dc2626] leading-tight mt-1 whitespace-nowrap">
+              Absent
             </div>
           </div>
 
-          {/* Card 4: Holiday */}
-          <div className="bg-[#eff6ff]/70 border border-blue-200/80 rounded-2xl p-2.5 sm:p-3 flex flex-col justify-between">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-blue-100 flex items-center justify-center text-blue-700 mb-2">
-              <Calendar className="w-4 h-4 stroke-[2]" />
+          {/* 3. Leave (Amber/Yellow) */}
+          <div className="bg-[#fefce8] border border-[#fde68a] rounded-2xl px-0.5 py-2 sm:py-2.5 text-center flex flex-col items-center justify-center min-w-0 min-h-[68px] sm:min-h-[72px]">
+            <Calendar className="w-4 h-4 text-[#d97706] stroke-[2] shrink-0" />
+            <div className="text-[15px] sm:text-[16px] font-bold text-neutral-950 leading-none tabular-nums mt-1.5">
+              {summary.leave}
             </div>
-            <div>
-              <div className="text-[17px] sm:text-[20px] font-bold text-neutral-900 leading-none">
-                {attendanceData.summary.holiday}
-              </div>
-              <div className="text-[11px] text-[#1e40af] font-medium mt-1">Holiday</div>
+            <div className="text-[9px] min-[390px]:text-[9.5px] font-semibold text-[#b45309] leading-tight mt-1 whitespace-nowrap">
+              Leave
+            </div>
+          </div>
+
+          {/* 4. Late (Orange) */}
+          <div className="bg-[#fff7ed] border border-[#fed7aa] rounded-2xl px-0.5 py-2 sm:py-2.5 text-center flex flex-col items-center justify-center min-w-0 min-h-[68px] sm:min-h-[72px]">
+            <Clock className="w-4 h-4 text-[#ea580c] stroke-[2] shrink-0" />
+            <div className="text-[15px] sm:text-[16px] font-bold text-neutral-950 leading-none tabular-nums mt-1.5">
+              {summary.late}
+            </div>
+            <div className="text-[9px] min-[390px]:text-[9.5px] font-semibold text-[#c2410c] leading-tight mt-1 whitespace-nowrap">
+              Late
+            </div>
+          </div>
+
+          {/* 5. Half Day (Purple - exact Staff Homepage Today's Class Overview styling & icon) */}
+          <div className="bg-[#f5f3ff] border border-[#ddd6fe] rounded-2xl px-0.5 py-2 sm:py-2.5 text-center flex flex-col items-center justify-center min-w-0 min-h-[68px] sm:min-h-[72px]">
+            <svg
+              viewBox="0 0 24 24"
+              className="w-4 h-4 text-[#7c3aed] shrink-0"
+              aria-hidden="true"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="9"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+              <path d="M12 3a9 9 0 0 0 0 18V3z" fill="currentColor" />
+            </svg>
+            <div className="text-[15px] sm:text-[16px] font-bold text-neutral-950 leading-none tabular-nums mt-1.5">
+              {summary.halfDay}
+            </div>
+            <div className="text-[9px] min-[390px]:text-[9.5px] font-semibold text-[#6d28d9] leading-tight mt-1 whitespace-nowrap">
+              Half Day
             </div>
           </div>
         </div>
 
-        {/* Today's Attendance Card with Check-In / Check-Out and Progress Tracker */}
+        {/* 3. Today's Attendance Card with Simple Live Check-In / Check-Out Timer */}
         <div className="bg-white border border-[#e5e7eb] rounded-2xl p-4 sm:p-4.5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-3.5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700">
+          {/* Card Header + Simple Elapsed Timer (Clock/Stopwatch Icon + Duration Only) */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-9 h-9 rounded-full bg-[#f8f9fa] border border-[#e5e7eb] flex items-center justify-center text-neutral-900 shrink-0">
                 <CalendarDays className="w-4.5 h-4.5 stroke-[2]" />
               </div>
-              <div>
-                <h3 className="text-[14px] sm:text-[14.5px] font-bold text-neutral-900">
+              <div className="min-w-0">
+                <h3 className="text-[14px] sm:text-[14.5px] font-bold text-neutral-900 leading-tight">
                   Today's Attendance
                 </h3>
-                <p className="text-[11.5px] text-[#717684]">
-                  {attendanceData.todayRecord.dateFormatted}
+                <p className="text-[11.5px] text-[#717684] truncate mt-0.5">
+                  {todayRecord.dateFormatted}
                 </p>
               </div>
             </div>
-            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#15803d] bg-[#ecfdf5] border border-emerald-200 px-2.5 py-1 rounded-full">
-              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-              <span>Present</span>
-            </span>
+
+            <div
+              className="inline-flex items-center gap-1.5 bg-[#f8f9fa] border border-[#e5e7eb] px-2.5 py-1.5 rounded-xl shrink-0"
+              aria-label="Session elapsed timer"
+            >
+              <Timer className="w-3.5 h-3.5 text-neutral-800 stroke-[2]" />
+              <span className="text-[12.5px] font-bold text-neutral-950 tabular-nums tracking-tight">
+                {formattedSessionTimer}
+              </span>
+            </div>
           </div>
 
-          {/* Check-In & Check-Out Boxes */}
+          {/* Check-In & Check-Out Time Displays + Interactive Action Buttons */}
           <div className="grid grid-cols-2 gap-2.5">
-            <div className="bg-[#f8f9fa] border border-[#eef0f3] rounded-xl p-3 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-white border border-neutral-200 flex items-center justify-center text-neutral-900 shrink-0 shadow-2xs">
-                <LogIn className="w-4 h-4 stroke-[1.8]" />
-              </div>
-              <div>
-                <div className="text-[10.5px] text-[#6b7280] font-medium">Check In</div>
-                <div className="text-[13px] sm:text-[13.5px] font-bold text-neutral-900 mt-0.5">
-                  {attendanceData.todayRecord.checkIn}
+            <div className="bg-[#f8f9fa] border border-[#eef0f3] rounded-xl p-2.5 flex flex-col justify-between gap-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-white border border-neutral-200 flex items-center justify-center text-neutral-900 shrink-0 shadow-2xs">
+                  <LogIn className="w-4 h-4 stroke-[1.8]" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[10.5px] text-[#6b7280] font-medium">Check In</div>
+                  <div className="text-[13px] sm:text-[13.5px] font-bold text-neutral-900 mt-0.5 tabular-nums">
+                    {todayRecord.checkInDisplay}
+                  </div>
                 </div>
               </div>
+              <button
+                type="button"
+                disabled={!todayRecord.canCheckIn || actionLoading !== null}
+                onClick={handleCheckIn}
+                className={`w-full py-2 px-3 rounded-xl text-[12px] font-semibold transition flex items-center justify-center gap-1.5 ${
+                  todayRecord.canCheckIn && actionLoading === null
+                    ? 'bg-black text-white hover:bg-neutral-800 active:scale-[0.98] cursor-pointer'
+                    : 'bg-neutral-200/80 text-neutral-400 cursor-not-allowed'
+                }`}
+              >
+                <LogIn className="w-3.5 h-3.5 stroke-[2]" />
+                <span>{actionLoading === 'checkin' ? 'Checking In...' : 'Check In'}</span>
+              </button>
             </div>
 
-            <div className="bg-[#f8f9fa] border border-[#eef0f3] rounded-xl p-3 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-white border border-neutral-200 flex items-center justify-center text-neutral-900 shrink-0 shadow-2xs">
-                <LogOut className="w-4 h-4 stroke-[1.8]" />
-              </div>
-              <div>
-                <div className="text-[10.5px] text-[#6b7280] font-medium">Check Out</div>
-                <div className="text-[13px] sm:text-[13.5px] font-bold text-neutral-900 mt-0.5">
-                  {attendanceData.todayRecord.checkOut}
+            <div className="bg-[#f8f9fa] border border-[#eef0f3] rounded-xl p-2.5 flex flex-col justify-between gap-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-white border border-neutral-200 flex items-center justify-center text-neutral-900 shrink-0 shadow-2xs">
+                  <LogOut className="w-4 h-4 stroke-[1.8]" />
                 </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Three-Stage Progress Tracker: Submitted -> Under Review -> Approved */}
-          <div className="pt-2 pb-1">
-            <div className="relative w-full">
-              {/* Connecting Line 1 */}
-              <div className="absolute left-[16.666%] right-[50%] h-[2px] top-[10px] -translate-y-1/2 bg-black z-0" />
-              {/* Connecting Line 2 */}
-              <div className="absolute left-[50%] right-[16.666%] h-[2px] top-[10px] -translate-y-1/2 bg-black z-0" />
-
-              <div className="grid grid-cols-3 relative z-10 w-full text-center">
-                {/* Stage 1 */}
-                <div className="flex flex-col items-center px-1">
-                  <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center text-white shadow-2xs">
-                    <Check className="w-3.5 h-3.5 stroke-[3]" />
-                  </div>
-                  <div className="mt-1.5 w-full">
-                    <div className="text-[11px] font-bold text-neutral-900 leading-tight">Submitted</div>
-                    <div className="text-[10px] text-[#6b7280] mt-0.5 whitespace-nowrap">
-                      {attendanceData.todayRecord.tracker.submittedTime}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Stage 2 */}
-                <div className="flex flex-col items-center px-1">
-                  <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center text-white shadow-2xs">
-                    <Check className="w-3.5 h-3.5 stroke-[3]" />
-                  </div>
-                  <div className="mt-1.5 w-full">
-                    <div className="text-[11px] font-bold text-neutral-900 leading-tight">Under Review</div>
-                    <div className="text-[10px] text-[#8e95a2] mt-0.5 leading-tight whitespace-nowrap">
-                      (Administration)
-                    </div>
-                  </div>
-                </div>
-
-                {/* Stage 3 */}
-                <div className="flex flex-col items-center px-1">
-                  <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center text-white shadow-2xs">
-                    <Check className="w-3.5 h-3.5 stroke-[3]" />
-                  </div>
-                  <div className="mt-1.5 w-full">
-                    <div className="text-[11px] font-bold text-neutral-900 leading-tight">Approved</div>
-                    <div className="text-[10px] text-[#8e95a2] mt-0.5 leading-tight whitespace-nowrap">
-                      (End of Day)
-                    </div>
+                <div className="min-w-0">
+                  <div className="text-[10.5px] text-[#6b7280] font-medium">Check Out</div>
+                  <div className="text-[13px] sm:text-[13.5px] font-bold text-neutral-900 mt-0.5 tabular-nums">
+                    {todayRecord.checkOutDisplay}
                   </div>
                 </div>
               </div>
+              <button
+                type="button"
+                disabled={!todayRecord.canCheckOut || actionLoading !== null}
+                onClick={handleCheckOut}
+                className={`w-full py-2 px-3 rounded-xl text-[12px] font-semibold transition flex items-center justify-center gap-1.5 ${
+                  todayRecord.canCheckOut && actionLoading === null
+                    ? 'bg-black text-white hover:bg-neutral-800 active:scale-[0.98] cursor-pointer'
+                    : 'bg-neutral-200/80 text-neutral-400 cursor-not-allowed'
+                }`}
+              >
+                <LogOut className="w-3.5 h-3.5 stroke-[2]" />
+                <span>{actionLoading === 'checkout' ? 'Checking Out...' : 'Check Out'}</span>
+              </button>
             </div>
           </div>
+
+          {actionError && (
+            <div className="bg-[#fff1f2] border border-[#fecdd3] text-[#dc2626] rounded-xl px-3 py-2 text-[11px] font-medium flex items-center gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+              <span>{actionError}</span>
+            </div>
+          )}
         </div>
 
-        {/* Monthly Calendar View */}
+        {/* 4. Monthly Calendar View (Centered < Month Year >, No Legend, Operational & Non-Future Restrictions) */}
         <div className="bg-white border border-[#e5e7eb] rounded-2xl p-4 sm:p-4.5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-3.5">
-          {/* Calendar Header with Month Navigation and Legend Dots */}
+          {/* Centered Month Navigation Header */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  const next = shiftMonthYear(currentMonth, -1);
-                  setIsCustomMonth(next !== monthYearStr);
-                  setCurrentMonth(next);
-                }}
-                className="w-7 h-7 rounded-full bg-[#f8f9fa] border border-neutral-200 flex items-center justify-center text-neutral-700 hover:bg-neutral-100 cursor-pointer"
-                aria-label="Previous Month"
-              >
-                <ChevronLeft className="w-4 h-4 stroke-[2]" />
-              </button>
-              <h3 className="text-[15px] font-bold text-neutral-900 tracking-tight">
-                {currentMonth}
-              </h3>
-              <button
-                type="button"
-                onClick={() => {
-                  const next = shiftMonthYear(currentMonth, 1);
-                  setIsCustomMonth(next !== monthYearStr);
-                  setCurrentMonth(next);
-                }}
-                className="w-7 h-7 rounded-full bg-[#f8f9fa] border border-neutral-200 flex items-center justify-center text-neutral-700 hover:bg-neutral-100 cursor-pointer"
-                aria-label="Next Month"
-              >
-                <ChevronRight className="w-4 h-4 stroke-[2]" />
-              </button>
-            </div>
+            <button
+              type="button"
+              disabled={!attendanceData.prevOperationalMonth}
+              onClick={handlePrevMonth}
+              className={`w-8 h-8 rounded-full border border-neutral-200 flex items-center justify-center transition ${
+                attendanceData.prevOperationalMonth
+                  ? 'bg-[#f8f9fa] text-neutral-800 hover:bg-neutral-100 active:scale-95 cursor-pointer'
+                  : 'bg-neutral-50 text-neutral-300 cursor-not-allowed'
+              }`}
+              aria-label="Previous Month"
+            >
+              <ChevronLeft className="w-4 h-4 stroke-[2]" />
+            </button>
 
-            {/* Legend */}
-            <div className="hidden sm:flex items-center gap-3 text-[10px] text-[#6b7280]">
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" />Present</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-500" />Absent</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500" />Leave</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500" />Half Day</span>
-            </div>
+            <h3 className="flex-1 text-center text-[15px] font-bold text-neutral-900 tracking-tight">
+              {attendanceData.month}
+            </h3>
+
+            <button
+              type="button"
+              disabled={!attendanceData.nextOperationalMonth}
+              onClick={handleNextMonth}
+              className={`w-8 h-8 rounded-full border border-neutral-200 flex items-center justify-center transition ${
+                attendanceData.nextOperationalMonth
+                  ? 'bg-[#f8f9fa] text-neutral-800 hover:bg-neutral-100 active:scale-95 cursor-pointer'
+                  : 'bg-neutral-50 text-neutral-300 cursor-not-allowed'
+              }`}
+              aria-label="Next Month"
+            >
+              <ChevronRight className="w-4 h-4 stroke-[2]" />
+            </button>
           </div>
 
           {/* Weekday Labels */}
@@ -350,72 +465,114 @@ export default function MyAttendanceScreen({
 
           {/* Calendar Grid Days */}
           <div className="grid grid-cols-7 gap-y-2 text-center text-[12.5px] font-medium pt-1">
-            {/* Previous month trailing padding days */}
             {leadingPaddingDays.map((padDay) => (
               <span key={`pad-${padDay}`} className="text-neutral-300 py-1.5">
                 {padDay}
               </span>
             ))}
 
-            {/* Days of the active month */}
             {attendanceData.days.map((item) => {
               const isSelected = selectedDay === item.day;
               const isToday = item.isToday;
 
-              let styleClass = 'text-neutral-800 hover:bg-neutral-100';
+              let styleClass = 'text-neutral-700 hover:bg-neutral-100';
               let dotColor = 'bg-transparent';
 
-              if (item.status === 'Present') {
-                styleClass = 'text-neutral-900 bg-emerald-50/80 hover:bg-emerald-100/80';
-                dotColor = 'bg-emerald-500';
+              if (!item.isOperational || item.isFuture) {
+                styleClass = 'text-neutral-300 hover:bg-neutral-50';
+              } else if (item.status === 'Present') {
+                styleClass = 'text-[#15803d] bg-[#effaf3] hover:bg-emerald-100/80';
+                dotColor = 'bg-[#16a34a]';
               } else if (item.status === 'Absent') {
-                styleClass = 'text-rose-700 bg-rose-50/80 hover:bg-rose-100/80';
-                dotColor = 'bg-rose-500';
+                styleClass = 'text-[#dc2626] bg-[#fff1f2] hover:bg-rose-100/80';
+                dotColor = 'bg-[#dc2626]';
               } else if (item.status === 'Leave') {
-                styleClass = 'text-amber-800 bg-amber-50/80 hover:bg-amber-100/80';
-                dotColor = 'bg-amber-500';
+                styleClass = 'text-[#b45309] bg-[#fefce8] hover:bg-amber-100/80';
+                dotColor = 'bg-[#d97706]';
+              } else if (item.status === 'Late') {
+                styleClass = 'text-[#c2410c] bg-[#fff7ed] hover:bg-orange-100/80';
+                dotColor = 'bg-[#ea580c]';
               } else if (item.status === 'Half Day') {
-                styleClass = 'text-blue-800 bg-blue-50/80 hover:bg-blue-100/80';
-                dotColor = 'bg-blue-500';
-              } else if (item.status === 'Holiday') {
-                styleClass = 'text-neutral-400 bg-neutral-50';
+                styleClass = 'text-[#6d28d9] bg-[#f5f3ff] hover:bg-purple-100/80';
+                dotColor = 'bg-[#7c3aed]';
               }
 
-              if (isToday) {
+              if (isToday && isSelected) {
                 styleClass = 'text-white bg-black font-bold shadow-sm';
+              } else if (isToday) {
+                styleClass = 'text-white bg-neutral-800 font-bold shadow-sm';
+              } else if (isSelected) {
+                styleClass = `${styleClass} ring-2 ring-black ring-offset-1 font-bold`;
               }
 
               return (
-                <div
+                <button
+                  type="button"
                   key={item.day}
                   onClick={() => setSelectedDay(item.day)}
                   className={`relative w-8 h-8 sm:w-9 sm:h-9 mx-auto rounded-full flex flex-col items-center justify-center cursor-pointer transition ${styleClass}`}
+                  aria-label={`${item.day} ${attendanceData.month}${item.hasRecord ? ` - ${item.status}` : ''}`}
                 >
                   <span className="leading-none">{item.day}</span>
-                  {!isToday && item.status !== 'Holiday' && (
+                  {!isToday && item.hasRecord && dotColor !== 'bg-transparent' && (
                     <span className={`w-1 h-1 rounded-full mt-0.5 ${dotColor}`} />
                   )}
-                </div>
+                </button>
               );
             })}
           </div>
 
-          {/* Selected Date Details Strip */}
-          <div className="bg-[#f8f9fa] border border-[#eef0f3] rounded-xl p-3 flex items-center justify-between text-[12px] mt-2">
-            <div>
-              <span className="font-bold text-neutral-900">
-                {selectedRecord.day} {currentMonth} Details:
-              </span>
-              <span className="text-[#6b7280] ml-2">
-                {selectedRecord.status} • {selectedRecord.checkIn || '08:58 AM'} - {selectedRecord.checkOut || '05:12 PM'}
-              </span>
-            </div>
-            <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-md">
-              {selectedRecord.status}
-            </span>
-          </div>
-        </div>
+          {/* Selected Date Details Panel */}
+          {selectedRecord && (
+            <div className="bg-[#f8f9fa] border border-[#eef0f3] rounded-xl p-3 space-y-2 mt-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[12.5px] font-bold text-neutral-900">
+                  {selectedRecord.day} {attendanceData.month}
+                </span>
+                {selectedRecord.hasRecord && (
+                  <span
+                    className={`text-[11px] font-semibold px-2 py-0.5 rounded-md border ${getSelectedStatusBadgeClasses(
+                      selectedRecord.status
+                    )}`}
+                  >
+                    {selectedRecord.status}
+                  </span>
+                )}
+              </div>
 
+              {selectedRecord.hasRecord ? (
+                <div className="grid grid-cols-3 gap-2 pt-0.5 text-[11.5px]">
+                  <div>
+                    <span className="text-[10px] text-[#6b7280] block">Check In</span>
+                    <span className="font-semibold text-neutral-900 tabular-nums">
+                      {selectedRecord.checkIn || '—'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-[#6b7280] block">Check Out</span>
+                    <span className="font-semibold text-neutral-900 tabular-nums">
+                      {selectedRecord.checkOut || '—'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-[#6b7280] block">Duration</span>
+                    <span className="font-semibold text-neutral-900 tabular-nums">
+                      {selectedRecord.checkIn &&
+                      selectedRecord.checkOut &&
+                      selectedRecord.durationFormatted
+                        ? selectedRecord.durationFormatted
+                        : '—'}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[11.5px] text-[#6b7280]">
+                  No attendance record available for this date.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Shared 5-Button Bottom Navigation */}
@@ -427,7 +584,6 @@ export default function MyAttendanceScreen({
         onNavigateMyRequests={onNavigateMyRequests}
         onNavigateProfile={onNavigateProfile}
       />
-
     </div>
   );
 }

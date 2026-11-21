@@ -5,7 +5,6 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
-  ChevronDown,
   ChevronRight,
   Megaphone,
   Trophy,
@@ -45,6 +44,7 @@ import {
 } from './utils/announcementAttachmentUtils';
 import StaffBottomNav from './components/StaffBottomNav';
 import StaffStatusBar from './components/StaffStatusBar';
+import OffsleekDropdown from './components/OffsleekDropdown';
 import { formatISTDateMedium } from './utils/dateTimeUtils';
 
 interface AnnouncementsScreenProps {
@@ -631,25 +631,25 @@ export default function AnnouncementsScreen({
                   />
                 </div>
 
-                <div>
+                <div className="relative z-30">
                   <label className="block text-[11px] font-semibold text-neutral-700 uppercase tracking-wider mb-1">
                     Category
                   </label>
-                  <select
+                  <OffsleekDropdown
+                    size="sm"
                     value={newCategory}
-                    onChange={(e) =>
+                    options={['General', 'Important', 'Academic', 'Events', 'Holidays'].map((c) => ({
+                      value: c,
+                      label: c,
+                    }))}
+                    onChange={(val) =>
                       setNewCategory(
-                        e.target.value as 'Important' | 'Academic' | 'Events' | 'Holidays' | 'General'
+                        val as 'Important' | 'Academic' | 'Events' | 'Holidays' | 'General'
                       )
                     }
-                    className="w-full bg-[#f8f9fa] border border-neutral-200 rounded-xl px-3 py-2 text-[12.5px] text-neutral-900 focus:outline-none focus:border-black"
-                  >
-                    <option value="General">General</option>
-                    <option value="Important">Important</option>
-                    <option value="Academic">Academic</option>
-                    <option value="Events">Events</option>
-                    <option value="Holidays">Holidays</option>
-                  </select>
+                    maxMenuHeightPx={184}
+                    ariaLabel="Announcement Category"
+                  />
                 </div>
 
                 <div>

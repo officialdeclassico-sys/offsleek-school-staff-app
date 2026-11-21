@@ -173,5 +173,167 @@ service cloud.firestore {
 
       allow delete: if false;
     }
+
+    // 5. Staff Personal Attendance (Live Check-In / Check-Out & Approval Workflow)
+    function isValidStaffPersonalAttendance(data, schoolId) {
+      return data.keys().hasAll([
+          'id',
+          'staffId',
+          'employeeId',
+          'schoolId',
+          'dateKey',
+          'attendanceStatus',
+          'sessionState',
+          'sessionDurationSeconds',
+          'approvalState',
+          'needsCorrectionReview',
+          'correctionStatus',
+          'createdAtIso',
+          'updatedAtIso'
+        ])
+        && data.keys().hasOnly([
+          'id',
+          'staffId',
+          'employeeId',
+          'staffName',
+          'schoolId',
+          'dateKey',
+          'attendanceStatus',
+          'sessionState',
+          'checkInAtMs',
+          'checkOutAtMs',
+          'sessionDurationSeconds',
+          'submittedAtMs',
+          'reviewedAtMs',
+          'approvedAtMs',
+          'reviewerName',
+          'approverName',
+          'approvalState',
+          'needsCorrectionReview',
+          'correctionStatus',
+          'correctionReason',
+          'notes',
+          'createdAtIso',
+          'updatedAtIso',
+          'serverCheckInAt',
+          'serverCheckOutAt',
+          'serverUpdatedAt'
+        ])
+        && data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.schoolId is string && data.schoolId == schoolId
+        && data.staffId is string && data.staffId.size() > 0 && data.staffId.size() <= 128
+        && data.employeeId is string && data.employeeId.size() > 0 && data.employeeId.size() <= 64
+        && (!('staffName' in data) || (data.staffName is string && data.staffName.size() <= 128))
+        && data.dateKey is string && data.dateKey.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && data.attendanceStatus in ['Present', 'Absent', 'Leave', 'Late', 'Half Day']
+        && data.sessionState in ['NOT_CHECKED_IN', 'CHECKED_IN', 'CHECKED_OUT']
+        && data.approvalState in ['NOT_SUBMITTED', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED']
+        && data.correctionStatus in ['NONE', 'PENDING_CORRECTION_REVIEW', 'RESOLVED']
+        && data.needsCorrectionReview is bool
+        && data.sessionDurationSeconds is int && data.sessionDurationSeconds >= 0 && data.sessionDurationSeconds <= 86400
+        && data.createdAtIso is string && data.createdAtIso.size() > 0 && data.createdAtIso.size() <= 64
+        && data.updatedAtIso is string && data.updatedAtIso.size() > 0 && data.updatedAtIso.size() <= 64
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 500))
+        && (!('correctionReason' in data) || (data.correctionReason is string && data.correctionReason.size() <= 500))
+        && (!('reviewerName' in data) || data.reviewerName == null || (data.reviewerName is string && data.reviewerName.size() <= 128))
+        && (!('approverName' in data) || data.approverName == null || (data.approverName is string && data.approverName.size() <= 128));
+    }
+
+    match /schools/{schoolId}/staffPersonalAttendance/{recordId} {
+      // Staff can read ONLY their own personal attendance records; School Admins/HR/Principal can read for their school
+      allow read: if isAuthenticated()
+        && resource.data.schoolId == schoolId
+        && (
+          (isSchoolStaffFor(schoolId) && resource.data.staffId == request.auth.uid) ||
+          isSchoolAdminFor(schoolId)
+        );
+
+      // Staff can create ONLY their own Check-In record for today with deterministic ID (prevents duplicate sessions)
+      allow create: if isSchoolStaffFor(schoolId)
+        && isValidAttendanceId(recordId)
+        && isValidStaffPersonalAttendance(request.resource.data, schoolId)
+        && request.resource.data.staffId == request.auth.uid
+        && recordId == (schoolId + '__' + request.auth.uid + '__' + request.resource.data.dateKey)
+        && request.resource.data.sessionState == 'CHECKED_IN'
+        && request.resource.data.checkInAtMs is int && request.resource.data.checkInAtMs > 0
+        && (!('checkOutAtMs' in request.resource.data) || request.resource.data.checkOutAtMs == null)
+        && request.resource.data.approvalState == 'SUBMITTED'
+        && (!('approvedAtMs' in request.resource.data) || request.resource.data.approvedAtMs == null)
+        && (!('approverName' in request.resource.data) || request.resource.data.approverName == null)
+        && request.resource.data.serverCheckInAt == request.time
+        && request.resource.data.serverUpdatedAt == request.time;
+
+      // Action-based update: Check-Out (staff owner), Flag Unclosed Prior Session (staff owner), or Approve/Correct (Admin)
+      allow update: if isSchoolStaffFor(schoolId)
+        && isValidAttendanceId(recordId)
+        && isValidStaffPersonalAttendance(request.resource.data, schoolId)
+        && request.resource.data.staffId == resource.data.staffId
+        && request.resource.data.schoolId == resource.data.schoolId
+        && request.resource.data.dateKey == resource.data.dateKey
+        && request.resource.data.employeeId == resource.data.employeeId
+        && request.resource.data.createdAtIso == resource.data.createdAtIso
+        && (
+          // Action 1: Staff owner Check-Out (only once from active CHECKED_IN session; never self-approves)
+          (
+            resource.data.staffId == request.auth.uid &&
+            resource.data.sessionState == 'CHECKED_IN' &&
+            resource.data.checkOutAtMs == null &&
+            resource.data.approvalState != 'APPROVED' &&
+            request.resource.data.sessionState == 'CHECKED_OUT' &&
+            request.resource.data.checkInAtMs == resource.data.checkInAtMs &&
+            request.resource.data.submittedAtMs == resource.data.submittedAtMs &&
+            request.resource.data.checkOutAtMs is int &&
+            request.resource.data.checkOutAtMs >= resource.data.checkInAtMs &&
+            request.resource.data.approvalState == 'UNDER_REVIEW' &&
+            (!('approvedAtMs' in request.resource.data) || request.resource.data.approvedAtMs == null) &&
+            (!('approverName' in request.resource.data) || request.resource.data.approverName == null) &&
+            request.resource.data.serverCheckOutAt == request.time &&
+            request.resource.data.serverUpdatedAt == request.time &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'sessionState',
+              'checkOutAtMs',
+              'sessionDurationSeconds',
+              'reviewedAtMs',
+              'reviewerName',
+              'approvalState',
+              'approvedAtMs',
+              'approverName',
+              'updatedAtIso',
+              'serverCheckOutAt',
+              'serverUpdatedAt',
+              'notes'
+            ])
+          ) ||
+          // Action 2: Flag prior-day unclosed session for review without altering original check-in
+          (
+            resource.data.staffId == request.auth.uid &&
+            resource.data.sessionState == 'CHECKED_IN' &&
+            resource.data.checkOutAtMs == null &&
+            resource.data.needsCorrectionReview == false &&
+            request.resource.data.needsCorrectionReview == true &&
+            request.resource.data.correctionStatus == 'PENDING_CORRECTION_REVIEW' &&
+            request.resource.data.checkInAtMs == resource.data.checkInAtMs &&
+            request.resource.data.approvalState == resource.data.approvalState &&
+            request.resource.data.serverUpdatedAt == request.time &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'needsCorrectionReview',
+              'correctionStatus',
+              'notes',
+              'updatedAtIso',
+              'serverUpdatedAt'
+            ])
+          ) ||
+          // Action 3: School Administration / HR / Principal approval or correction resolution
+          isSchoolAdminFor(schoolId)
+        );
+
+      allow delete: if false;
+    }
+
+    // 6. School Attendance Operational Period Configuration
+    match /schools/{schoolId}/attendanceOperationalConfig/{configId} {
+      allow read: if isSchoolStaffFor(schoolId);
+      allow write: if isSchoolAdminFor(schoolId);
+    }
   }
 }

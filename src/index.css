@@ -26,6 +26,87 @@
   }
 }
 
+:root {
+  --offsleek-dropdown-bg: #ffffff;
+  --offsleek-dropdown-border: #e5e7eb;
+  --offsleek-dropdown-border-hover: #9ca3af;
+  --offsleek-dropdown-border-focus: #000000;
+  --offsleek-dropdown-text: #000000;
+  --offsleek-dropdown-muted: #6b7280;
+  --offsleek-dropdown-hover-bg: #f3f4f6;
+  --offsleek-dropdown-selected-bg: #000000;
+  --offsleek-dropdown-selected-text: #ffffff;
+  --offsleek-dropdown-trigger-radius: 12px;
+  --offsleek-dropdown-menu-radius: 14px;
+}
+
+.offsleek-dropdown-trigger {
+  box-sizing: border-box;
+  background-color: var(--offsleek-dropdown-bg);
+  border: 1px solid var(--offsleek-dropdown-border);
+  border-radius: var(--offsleek-dropdown-trigger-radius);
+  color: var(--offsleek-dropdown-text);
+}
+
+.offsleek-dropdown-trigger:hover:not(:disabled) {
+  border-color: var(--offsleek-dropdown-border-hover);
+}
+
+.offsleek-dropdown-trigger[aria-expanded='true'] {
+  border-color: var(--offsleek-dropdown-border-focus);
+}
+
+.offsleek-dropdown-menu {
+  box-sizing: border-box;
+  background-color: var(--offsleek-dropdown-bg);
+  border: 1px solid var(--offsleek-dropdown-border);
+  border-radius: var(--offsleek-dropdown-menu-radius);
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 24px -6px rgba(0, 0, 0, 0.14), 0 4px 10px -2px rgba(0, 0, 0, 0.06);
+}
+
+.offsleek-dropdown-list {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.offsleek-dropdown-option {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background-color: var(--offsleek-dropdown-bg);
+  color: var(--offsleek-dropdown-text);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.offsleek-dropdown-option:hover:not(:disabled):not([aria-selected='true']),
+.offsleek-dropdown-option[data-highlighted='true']:not([aria-selected='true']) {
+  background-color: var(--offsleek-dropdown-hover-bg);
+  color: var(--offsleek-dropdown-text);
+}
+
+.offsleek-dropdown-option[aria-selected='true'] {
+  background-color: var(--offsleek-dropdown-selected-bg);
+  color: var(--offsleek-dropdown-selected-text);
+}
+
 /* Payment App Success Confirmation Animations (PhonePe / GPay / Paytm Style) */
 @keyframes paymentBadgePop {
   0% {

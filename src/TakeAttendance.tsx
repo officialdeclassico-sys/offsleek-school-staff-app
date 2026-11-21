@@ -6,7 +6,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   ChevronLeft,
-  ChevronDown,
   Calendar,
   Users,
   Search,
@@ -16,6 +15,7 @@ import {
   X,
   AlertCircle,
   Clock,
+  Info,
 } from 'lucide-react';
 import {
   Student,
@@ -27,6 +27,7 @@ import {
   getInitialStudentsForGrade,
 } from './services/attendanceService';
 import StaffStatusBar from './components/StaffStatusBar';
+import OffsleekDropdown from './components/OffsleekDropdown';
 import { useISTCurrentDate } from './utils/dateTimeUtils';
 import { getAssetUrl } from './utils/assetUtils';
 
@@ -102,7 +103,6 @@ export default function TakeAttendance({
   const dateKey = todayDateKey;
 
   // Dropdown popover states
-  const [showClassDropdown, setShowClassDropdown] = useState(false);
   const [showDateModal, setShowDateModal] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -178,33 +178,39 @@ export default function TakeAttendance({
   const [isSaving, setIsSaving] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  const classDropdownRef = useRef<HTMLDivElement>(null);
-  const dateModalRef = useRef<HTMLDivElement>(null);
+  const dateTriggerRef = useRef<HTMLButtonElement>(null);
+  const dateNoticeRef = useRef<HTMLDivElement>(null);
 
-  // Dismiss dropdowns on outside click
+  // Dismiss inline date-policy notice on outside click or Escape
   useEffect(() => {
+    if (!showDateModal) return;
+
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        classDropdownRef.current &&
-        !classDropdownRef.current.contains(event.target as Node)
-      ) {
-        setShowClassDropdown(false);
-      }
-      if (
-        dateModalRef.current &&
-        !dateModalRef.current.contains(event.target as Node)
-      ) {
+      const target = event.target as Node;
+      const inTrigger = dateTriggerRef.current?.contains(target);
+      const inNotice = dateNoticeRef.current?.contains(target);
+      if (!inTrigger && !inNotice) {
         setShowDateModal(false);
       }
     };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowDateModal(false);
+      }
+    };
+
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showDateModal]);
 
   // When staff switches assigned class
   const handleSelectClass = (gradeName: string) => {
     setSelectedGrade(gradeName);
-    setShowClassDropdown(false);
     setSelectedStudentIds(new Set());
     setValidationError(null);
 
@@ -434,115 +440,65 @@ export default function TakeAttendance({
         </div>
 
         {/* Date and Class Selectors (2 columns side by side) */}
-        <div className="grid grid-cols-2 gap-2 relative">
-          
-          {/* Date Selector */}
-          <div className="relative" ref={dateModalRef}>
+        <div className="space-y-2 relative z-30">
+          <div className="grid grid-cols-2 gap-2">
+            {/* Date Selector */}
             <button
+              ref={dateTriggerRef}
               type="button"
-              onClick={() => {
-                setShowDateModal(!showDateModal);
-                setShowClassDropdown(false);
-              }}
-              className="w-full flex items-center justify-between bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-xl px-3 py-2 text-[12px] font-semibold text-neutral-900 shadow-[0_1px_2px_rgba(0,0,0,0.02)] cursor-pointer transition text-left"
+              aria-expanded={showDateModal}
+              aria-controls="attendance-date-policy-notice"
+              aria-label={`Attendance date ${dateStr}. Tap to view date policy`}
+              onClick={() => setShowDateModal((prev) => !prev)}
+              className="offsleek-dropdown-trigger w-full flex items-center justify-between gap-2 bg-white border border-[#e5e7eb] px-2.5 py-2 text-[12px] font-semibold text-black shadow-[0_1px_2px_rgba(0,0,0,0.02)] cursor-pointer transition text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black"
             >
-              <div className="flex items-center gap-1.5 truncate">
-                <Calendar className="w-3.5 h-3.5 text-neutral-800 stroke-[2] shrink-0" />
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <Calendar className="w-3.5 h-3.5 text-black stroke-[2] shrink-0" />
                 <span className="truncate">{dateStr}</span>
               </div>
-              <ChevronDown className="w-3.5 h-3.5 text-neutral-500 shrink-0 ml-1" />
+              <Info
+                aria-hidden="true"
+                className="w-3.5 h-3.5 text-black stroke-[2] shrink-0"
+              />
             </button>
 
-            {/* Date Policy Popover */}
-            {showDateModal && (
-              <div className="absolute top-full left-0 mt-1.5 w-64 bg-white border border-[#e5e7eb] rounded-2xl shadow-xl p-3 z-40 text-neutral-900 animate-in fade-in slide-in-from-top-1 duration-150">
-                <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#f3f4f6]">
-                  <div className="flex items-center gap-1.5">
-                    <Clock className="w-4 h-4 text-neutral-900 stroke-[2]" />
-                    <span className="text-[12px] font-bold">Attendance Date</span>
-                  </div>
-                  <button
-                    onClick={() => setShowDateModal(false)}
-                    className="text-neutral-400 hover:text-neutral-800 p-0.5 cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-                <div className="bg-[#f8f9fa] rounded-xl p-2.5 mb-2 border border-[#edf0f4]">
-                  <div className="text-[10px] text-[#717684] font-medium uppercase tracking-wider">
-                    Today's Session
-                  </div>
-                  <div className="text-[13px] font-bold text-neutral-950 mt-0.5">
-                    {dateStr}
-                  </div>
-                </div>
-                <p className="text-[11px] text-[#6b7280] leading-snug">
-                  Attendance can only be recorded for today in accordance with school policy. Past or future dates cannot be recorded.
-                </p>
-              </div>
-            )}
+            {/* Assigned Class Selector */}
+            <OffsleekDropdown
+              size="sm"
+              value={selectedGrade}
+              options={ASSIGNED_CLASSES.map((cls) => ({
+                value: cls.name,
+                label: cls.name,
+                description: `${cls.role} • ${cls.studentCount} students`,
+              }))}
+              onChange={handleSelectClass}
+              icon={<Users className="w-3.5 h-3.5 stroke-[2]" />}
+              ariaLabel="Select assigned class"
+            />
           </div>
 
-          {/* Assigned Class Selector */}
-          <div className="relative" ref={classDropdownRef}>
-            <button
-              type="button"
-              onClick={() => {
-                setShowClassDropdown(!showClassDropdown);
-                setShowDateModal(false);
-              }}
-              className="w-full flex items-center justify-between bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-xl px-3 py-2 text-[12px] font-semibold text-neutral-900 shadow-[0_1px_2px_rgba(0,0,0,0.02)] cursor-pointer transition text-left"
+          {/* Compact Inline Attendance Date Policy Notice (Non-overlapping) */}
+          {showDateModal && (
+            <div
+              ref={dateNoticeRef}
+              id="attendance-date-policy-notice"
+              role="note"
+              className="w-full bg-[#f8f9fa] border border-[#e5e7eb] rounded-xl px-3 py-2 flex items-start gap-2 text-neutral-800 animate-in fade-in duration-150"
             >
-              <div className="flex items-center gap-1.5 truncate">
-                <Users className="w-3.5 h-3.5 text-neutral-800 stroke-[2] shrink-0" />
-                <span className="truncate">{selectedGrade}</span>
-              </div>
-              <ChevronDown className="w-3.5 h-3.5 text-neutral-500 shrink-0 ml-1" />
-            </button>
-
-            {/* Assigned Classes Dropdown */}
-            {showClassDropdown && (
-              <div className="absolute top-full right-0 mt-1.5 w-60 bg-white border border-[#e5e7eb] rounded-2xl shadow-xl p-1.5 z-40 text-neutral-900 animate-in fade-in slide-in-from-top-1 duration-150">
-                <div className="px-2.5 py-1.5 text-[10px] font-bold text-[#8e95a2] uppercase tracking-wider">
-                  Permitted Assigned Classes
-                </div>
-                <div className="space-y-1">
-                  {ASSIGNED_CLASSES.map((cls) => {
-                    const isSelected = selectedGrade === cls.name;
-                    return (
-                      <button
-                        key={cls.id}
-                        type="button"
-                        onClick={() => handleSelectClass(cls.name)}
-                        className={`w-full flex items-center justify-between p-2 rounded-xl text-left cursor-pointer transition ${
-                          isSelected
-                            ? 'bg-neutral-900 text-white'
-                            : 'hover:bg-neutral-50 text-neutral-900'
-                        }`}
-                      >
-                        <div>
-                          <div className="text-[12.5px] font-bold leading-tight">
-                            {cls.name}
-                          </div>
-                          <div
-                            className={`text-[10px] mt-0.5 ${
-                              isSelected ? 'text-neutral-300' : 'text-[#717684]'
-                            }`}
-                          >
-                            {cls.role} • {cls.studentCount} students
-                          </div>
-                        </div>
-                        {isSelected && (
-                          <Check className="w-4 h-4 text-white stroke-[2.5]" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-
+              <Info className="w-3.5 h-3.5 text-neutral-700 stroke-[2] shrink-0 mt-0.5" />
+              <p className="flex-1 min-w-0 text-[11px] text-[#4b5563] leading-snug">
+                Attendance can only be recorded for today in accordance with school policy. Past or future dates cannot be recorded.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowDateModal(false)}
+                aria-label="Close attendance date policy notice"
+                className="text-neutral-400 hover:text-black p-0.5 -mr-0.5 shrink-0 cursor-pointer transition"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* 5 Attendance Summary Cards (Present, Absent, Leave, Late, Half Day) */}

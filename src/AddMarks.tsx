@@ -3,33 +3,28 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   ChevronLeft,
-  Bell,
-  ChevronDown,
   Calendar,
   BookOpen,
   Search,
   Check,
-  CheckCircle2,
   Clock,
   AlertCircle,
   X,
-  Sliders,
   Settings,
-  UserX,
 } from 'lucide-react';
 import {
   StudentMark,
-  AssessmentRecord,
   AVAILABLE_SUBJECTS,
   AVAILABLE_ASSESSMENTS,
   getInitialMarksForGrade,
 } from './services/marksService';
 import { ASSIGNED_CLASSES } from './services/attendanceService';
 import StaffStatusBar from './components/StaffStatusBar';
-import { formatISTDateMedium } from './utils/dateTimeUtils';
+import OffsleekDropdown from './components/OffsleekDropdown';
+import { addDaysIST, formatISTDateMedium, getNow } from './utils/dateTimeUtils';
 import { getAssetUrl } from './utils/assetUtils';
 
 interface AddMarksProps {
@@ -142,26 +137,19 @@ export default function AddMarks({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
   const [showConfigDrawer, setShowConfigDrawer] = useState(false);
-  const [showClassDropdown, setShowClassDropdown] = useState(false);
-  const [showSubjectDropdown, setShowSubjectDropdown] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  const classRef = useRef<HTMLDivElement>(null);
-  const subjectRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (classRef.current && !classRef.current.contains(e.target as Node)) {
-        setShowClassDropdown(false);
-      }
-      if (subjectRef.current && !subjectRef.current.contains(e.target as Node)) {
-        setShowSubjectDropdown(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  const examDateOptions = useMemo(() => {
+    const base = getNow();
+    const dates = [-2, -1, 0, 1, 2, 3, 4, 5].map((offset) =>
+      formatISTDateMedium(addDaysIST(base, offset))
+    );
+    if (examDate && !dates.includes(examDate)) {
+      dates.unshift(examDate);
+    }
+    return Array.from(new Set(dates)).map((d) => ({ value: d, label: d }));
+  }, [examDate]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -386,98 +374,36 @@ export default function AddMarks({
         </div>
 
         {/* Class & Subject Selectors (2 columns) */}
-        <div className="grid grid-cols-2 gap-2 relative">
-          
-          {/* Class Selector */}
-          <div className="relative" ref={classRef}>
-            <button
-              type="button"
-              onClick={() => {
-                setShowClassDropdown(!showClassDropdown);
-                setShowSubjectDropdown(false);
-              }}
-              className="w-full flex items-center justify-between bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-xl px-3 py-2 text-[12px] font-semibold text-neutral-900 shadow-[0_1px_2px_rgba(0,0,0,0.02)] cursor-pointer transition text-left"
-            >
-              <div className="flex items-center gap-1.5 truncate">
-                <Calendar className="w-3.5 h-3.5 text-neutral-800 stroke-[2] shrink-0" />
-                <span className="truncate">{selectedGrade}</span>
-              </div>
-              <ChevronDown className="w-3.5 h-3.5 text-neutral-500 shrink-0 ml-1" />
-            </button>
+        <div className="grid grid-cols-2 gap-2 relative z-30">
+          <OffsleekDropdown
+            size="sm"
+            value={selectedGrade}
+            options={ASSIGNED_CLASSES.map((c) => ({
+              value: c.name,
+              label: c.name,
+            }))}
+            onChange={(val) => {
+              setSelectedGrade(val);
+              showToast(`Selected ${val}`);
+            }}
+            icon={<Calendar className="w-3.5 h-3.5 stroke-[2]" />}
+            ariaLabel="Select class"
+          />
 
-            {showClassDropdown && (
-              <div className="absolute top-full left-0 mt-1.5 w-56 bg-white border border-[#e5e7eb] rounded-2xl shadow-xl p-1.5 z-40 text-neutral-900 animate-in fade-in slide-in-from-top-1 duration-150">
-                <div className="px-2.5 py-1.5 text-[10px] font-bold text-[#8e95a2] uppercase tracking-wider">
-                  Select Class
-                </div>
-                {ASSIGNED_CLASSES.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedGrade(c.name);
-                      setShowClassDropdown(false);
-                      showToast(`Selected ${c.name}`);
-                    }}
-                    className={`w-full text-left p-2 rounded-xl text-[12px] font-semibold transition cursor-pointer flex items-center justify-between ${
-                      selectedGrade === c.name
-                        ? 'bg-black text-white'
-                        : 'hover:bg-neutral-100 text-neutral-800'
-                    }`}
-                  >
-                    <span>{c.name}</span>
-                    {selectedGrade === c.name && <Check className="w-3.5 h-3.5" />}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Subject Selector */}
-          <div className="relative" ref={subjectRef}>
-            <button
-              type="button"
-              onClick={() => {
-                setShowSubjectDropdown(!showSubjectDropdown);
-                setShowClassDropdown(false);
-              }}
-              className="w-full flex items-center justify-between bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-xl px-3 py-2 text-[12px] font-semibold text-neutral-900 shadow-[0_1px_2px_rgba(0,0,0,0.02)] cursor-pointer transition text-left"
-            >
-              <div className="flex items-center gap-1.5 truncate">
-                <BookOpen className="w-3.5 h-3.5 text-neutral-800 stroke-[2] shrink-0" />
-                <span className="truncate">{selectedSubject}</span>
-              </div>
-              <ChevronDown className="w-3.5 h-3.5 text-neutral-500 shrink-0 ml-1" />
-            </button>
-
-            {showSubjectDropdown && (
-              <div className="absolute top-full right-0 mt-1.5 w-56 bg-white border border-[#e5e7eb] rounded-2xl shadow-xl p-1.5 z-40 text-neutral-900 animate-in fade-in slide-in-from-top-1 duration-150">
-                <div className="px-2.5 py-1.5 text-[10px] font-bold text-[#8e95a2] uppercase tracking-wider">
-                  Select Subject
-                </div>
-                {AVAILABLE_SUBJECTS.map((sub) => (
-                  <button
-                    key={sub}
-                    type="button"
-                    onClick={() => {
-                      setSelectedSubject(sub);
-                      setShowSubjectDropdown(false);
-                      showToast(`Selected ${sub}`);
-                    }}
-                    className={`w-full text-left p-2 rounded-xl text-[12px] font-semibold transition cursor-pointer flex items-center justify-between ${
-                      selectedSubject === sub
-                        ? 'bg-black text-white'
-                        : 'hover:bg-neutral-100 text-neutral-800'
-                    }`}
-                  >
-                    <span>{sub}</span>
-                    {selectedSubject === sub && <Check className="w-3.5 h-3.5" />}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
+          <OffsleekDropdown
+            size="sm"
+            value={selectedSubject}
+            options={AVAILABLE_SUBJECTS.map((sub) => ({
+              value: sub,
+              label: sub,
+            }))}
+            onChange={(val) => {
+              setSelectedSubject(val);
+              showToast(`Selected ${val}`);
+            }}
+            icon={<BookOpen className="w-3.5 h-3.5 stroke-[2]" />}
+            ariaLabel="Select subject"
+          />
         </div>
 
         {/* Assessment Tabs: Unit Test 1, Unit Test 2, Term 1, Term 2 */}
@@ -558,9 +484,16 @@ export default function AddMarks({
                 <label className="text-[11px] font-medium text-neutral-600 block mb-1">
                   Assessment Type <span className="text-red-500">*</span>
                 </label>
-                <div className="bg-[#f8f9fa] border border-[#e5e7eb] rounded-xl px-3 py-2 text-xs font-semibold text-neutral-900">
-                  {selectedAssessment}
-                </div>
+                <OffsleekDropdown
+                  size="sm"
+                  value={selectedAssessment}
+                  options={AVAILABLE_ASSESSMENTS.map((a) => ({ value: a, label: a }))}
+                  onChange={(val) => {
+                    setSelectedAssessment(val);
+                    showToast(`Selected ${val}`);
+                  }}
+                  ariaLabel="Assessment Type"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
@@ -572,7 +505,7 @@ export default function AddMarks({
                     type="number"
                     value={totalMarks}
                     onChange={(e) => setTotalMarks(Math.max(1, parseInt(e.target.value) || 50))}
-                    className="w-full bg-[#f8f9fa] border border-[#e5e7eb] rounded-xl px-3 py-2 text-xs font-semibold text-neutral-900 focus:outline-none focus:border-black"
+                    className="w-full bg-white border border-[#e5e7eb] rounded-xl px-3 py-2 text-xs font-semibold text-neutral-900 focus:outline-none focus:border-black"
                   />
                 </div>
                 <div>
@@ -583,7 +516,7 @@ export default function AddMarks({
                     type="number"
                     value={passingMarks}
                     onChange={(e) => setPassingMarks(Math.max(0, parseInt(e.target.value) || 20))}
-                    className="w-full bg-[#f8f9fa] border border-[#e5e7eb] rounded-xl px-3 py-2 text-xs font-semibold text-neutral-900 focus:outline-none focus:border-black"
+                    className="w-full bg-white border border-[#e5e7eb] rounded-xl px-3 py-2 text-xs font-semibold text-neutral-900 focus:outline-none focus:border-black"
                   />
                 </div>
               </div>
@@ -592,13 +525,14 @@ export default function AddMarks({
                 <label className="text-[11px] font-medium text-neutral-600 block mb-1">
                   Exam Date <span className="text-red-500">*</span>
                 </label>
-                <div className="flex items-center justify-between bg-[#f8f9fa] border border-[#e5e7eb] rounded-xl px-3 py-2 text-xs font-semibold text-neutral-900">
-                  <div className="flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5 text-neutral-700" />
-                    <span>{examDate}</span>
-                  </div>
-                  <ChevronDown className="w-3.5 h-3.5 text-neutral-500" />
-                </div>
+                <OffsleekDropdown
+                  size="sm"
+                  value={examDate}
+                  options={examDateOptions}
+                  onChange={(val) => setExamDate(val)}
+                  icon={<Calendar className="w-3.5 h-3.5 stroke-[2]" />}
+                  ariaLabel="Exam Date"
+                />
               </div>
 
               {/* Toggle 1: Show marks to students */}

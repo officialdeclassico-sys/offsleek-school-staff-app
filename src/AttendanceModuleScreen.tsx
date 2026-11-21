@@ -7,7 +7,6 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   ChevronLeft,
   Calendar,
-  ChevronDown,
   ChevronRight,
   Search,
   School,
@@ -38,6 +37,7 @@ import {
   getMonthLeadingPaddingDaysUTC,
 } from './services/calendarService';
 import StaffBottomNav from './components/StaffBottomNav';
+import OffsleekDropdown from './components/OffsleekDropdown';
 import {
   useISTCurrentDate,
   parseMonthYearToYearMonth,
@@ -139,10 +139,6 @@ export default function AttendanceModuleScreen({
 
   // Selected date within Student Attendance monthly calendar
   const [selectedCalendarDateKey, setSelectedCalendarDateKey] = useState<string>(todayDateKey);
-
-  // Dropdown open states
-  const [showGradeDropdown, setShowGradeDropdown] = useState(false);
-  const [showMonthDropdown, setShowMonthDropdown] = useState(false);
 
   // Search & Sorting for Screen 1
   const [searchQuery, setSearchQuery] = useState('');
@@ -612,39 +608,20 @@ export default function AttendanceModuleScreen({
                 </h1>
               </div>
 
-              {/* Month Selector dropdown button */}
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setShowMonthDropdown(!showMonthDropdown)}
-                  className="flex items-center gap-1.5 bg-[#f8f9fa] border border-[#e5e7eb] hover:bg-neutral-100 rounded-xl px-2.5 py-1.5 text-[11.5px] font-semibold text-neutral-900 transition cursor-pointer"
-                >
-                  <Calendar className="w-3.5 h-3.5 text-neutral-700" />
-                  <span>{selectedMonth}</span>
-                  <ChevronDown className="w-3 h-3 text-neutral-500" />
-                </button>
-
-                {showMonthDropdown && (
-                  <div className="absolute right-0 top-full mt-1 w-36 bg-white border border-[#e5e7eb] rounded-xl shadow-lg py-1 z-30 animate-in fade-in zoom-in-95">
-                    {monthOptions.map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => {
-                          setIsCustomMonth(m !== monthYearStr);
-                          setSelectedMonth(m);
-                          setShowMonthDropdown(false);
-                          showToast(`Viewing ${m}`);
-                        }}
-                        className={`w-full text-left px-3 py-1.5 text-[11.5px] transition ${
-                          selectedMonth === m ? 'bg-black text-white font-bold' : 'text-neutral-700 hover:bg-neutral-100'
-                        }`}
-                      >
-                        {m}
-                      </button>
-                    ))}
-                  </div>
-                )}
+              {/* Month Selector dropdown */}
+              <div className="w-[138px] sm:w-[144px] shrink-0 relative z-30">
+                <OffsleekDropdown
+                  size="sm"
+                  value={selectedMonth}
+                  options={monthOptions.map((m) => ({ value: m, label: m }))}
+                  onChange={(m) => {
+                    setIsCustomMonth(m !== monthYearStr);
+                    setSelectedMonth(m);
+                    showToast(`Viewing ${m}`);
+                  }}
+                  icon={<Calendar className="w-3.5 h-3.5 stroke-[2]" />}
+                  ariaLabel="Select month for class summary"
+                />
               </div>
             </div>
           </div>
@@ -970,79 +947,37 @@ export default function AttendanceModuleScreen({
             </p>
 
             {/* Selectors Row: Grade & Month */}
-            <div className="grid grid-cols-2 gap-2 mt-2.5">
+            <div className="grid grid-cols-2 gap-2 mt-2.5 relative z-30">
               {/* Grade Selector */}
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setShowGradeDropdown(!showGradeDropdown)}
-                  className="w-full flex items-center justify-between bg-[#f8f9fa] border border-[#e5e7eb] hover:bg-neutral-100 rounded-xl px-2.5 py-2 text-[12px] font-bold text-neutral-900 transition cursor-pointer"
-                >
-                  <div className="flex items-center gap-1.5 truncate">
-                    <School className="w-3.5 h-3.5 text-neutral-700 shrink-0" />
-                    <span className="truncate">{selectedGrade}</span>
-                  </div>
-                  <ChevronDown className="w-3.5 h-3.5 text-neutral-500 shrink-0 ml-1" />
-                </button>
-
-                {showGradeDropdown && (
-                  <div className="absolute left-0 top-full mt-1 w-full bg-white border border-[#e5e7eb] rounded-xl shadow-lg py-1 z-30 animate-in fade-in zoom-in-95">
-                    {ASSIGNED_CLASSES.map((c) => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedGrade(c.name);
-                          setShowGradeDropdown(false);
-                          showToast(`Switched to ${c.name}`);
-                        }}
-                        className={`w-full text-left px-3 py-1.5 text-[12px] transition ${
-                          selectedGrade === c.name ? 'bg-black text-white font-bold' : 'text-neutral-700 hover:bg-neutral-100'
-                        }`}
-                      >
-                        {c.name} ({c.studentCount})
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <OffsleekDropdown
+                size="sm"
+                value={selectedGrade}
+                triggerLabel={selectedGrade}
+                options={ASSIGNED_CLASSES.map((c) => ({
+                  value: c.name,
+                  label: `${c.name} (${c.studentCount})`,
+                }))}
+                onChange={(val) => {
+                  setSelectedGrade(val);
+                  showToast(`Switched to ${val}`);
+                }}
+                icon={<School className="w-3.5 h-3.5 stroke-[2]" />}
+                ariaLabel="Select class"
+              />
 
               {/* Month Selector */}
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setShowMonthDropdown(!showMonthDropdown)}
-                  className="w-full flex items-center justify-between bg-[#f8f9fa] border border-[#e5e7eb] hover:bg-neutral-100 rounded-xl px-2.5 py-2 text-[12px] font-bold text-neutral-900 transition cursor-pointer"
-                >
-                  <div className="flex items-center gap-1.5 truncate">
-                    <Calendar className="w-3.5 h-3.5 text-neutral-700 shrink-0" />
-                    <span className="truncate">{selectedMonth}</span>
-                  </div>
-                  <ChevronDown className="w-3.5 h-3.5 text-neutral-500 shrink-0 ml-1" />
-                </button>
-
-                {showMonthDropdown && (
-                  <div className="absolute right-0 top-full mt-1 w-full bg-white border border-[#e5e7eb] rounded-xl shadow-lg py-1 z-30 animate-in fade-in zoom-in-95">
-                    {monthOptions.map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => {
-                          setIsCustomMonth(m !== monthYearStr);
-                          setSelectedMonth(m);
-                          setShowMonthDropdown(false);
-                          showToast(`Viewing ${m}`);
-                        }}
-                        className={`w-full text-left px-3 py-1.5 text-[12px] transition ${
-                          selectedMonth === m ? 'bg-black text-white font-bold' : 'text-neutral-700 hover:bg-neutral-100'
-                        }`}
-                      >
-                        {m}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <OffsleekDropdown
+                size="sm"
+                value={selectedMonth}
+                options={monthOptions.map((m) => ({ value: m, label: m }))}
+                onChange={(m) => {
+                  setIsCustomMonth(m !== monthYearStr);
+                  setSelectedMonth(m);
+                  showToast(`Viewing ${m}`);
+                }}
+                icon={<Calendar className="w-3.5 h-3.5 stroke-[2]" />}
+                ariaLabel="Select month"
+              />
             </div>
 
             {/* Segmented Control Tabs */}

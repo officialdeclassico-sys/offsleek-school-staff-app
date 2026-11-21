@@ -8,7 +8,6 @@ import {
   Calendar as CalendarIcon,
   Users,
   BookOpen,
-  ChevronDown,
   ChevronLeft,
   Upload,
   Search,
@@ -17,7 +16,6 @@ import {
   CheckCircle2,
   AlertCircle,
   Paperclip,
-  Check,
 } from 'lucide-react';
 import {
   HomeworkAttachment,
@@ -34,6 +32,7 @@ import {
   MAX_FILE_SIZE_BYTES,
 } from './services/homeworkService';
 import StaffStatusBar from './components/StaffStatusBar';
+import OffsleekDropdown from './components/OffsleekDropdown';
 import { getAssetUrl } from './utils/assetUtils';
 import {
   addDaysIST,
@@ -64,7 +63,6 @@ export default function LogHomework({
   const [selectedClass, setSelectedClass] = useState<string>(
     initialDraft?.grade || authorizedClasses[0]?.className || 'Grade 5 - A'
   );
-  const [isClassDropdownOpen, setIsClassDropdownOpen] = useState(false);
 
   // Available subjects for currently selected class
   const availableSubjects = useMemo(() => {
@@ -75,12 +73,10 @@ export default function LogHomework({
     if (initialDraft?.subject) return initialDraft.subject;
     return availableSubjects[0] || 'Mathematics';
   });
-  const [isSubjectDropdownOpen, setIsSubjectDropdownOpen] = useState(false);
 
   // Handle class change: auto-select first authorized subject & reload students
   const handleSelectClass = (className: string) => {
     setSelectedClass(className);
-    setIsClassDropdownOpen(false);
     const newSubjects = getAuthorizedSubjectsForClass(staffId, className);
     if (!newSubjects.includes(selectedSubject)) {
       setSelectedSubject(newSubjects[0] || 'Mathematics');
@@ -101,7 +97,6 @@ export default function LogHomework({
   const [hasCustomDateSelected, setHasCustomDateSelected] = useState(() =>
     Boolean(initialDraft?.assignedDateKey && initialDraft.assignedDateKey !== formatISTDateKey())
   );
-  const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
 
   React.useEffect(() => {
     if (!hasCustomDateSelected && !initialDraft) {
@@ -384,142 +379,60 @@ export default function LogHomework({
           </div>
         )}
 
-        {/* Stacked Date, Class, and Subject Selectors matching Screen 1 reference */}
-        <div className="space-y-2 relative">
-          
+        {/* Stacked Date, Class, and Subject Selectors */}
+        <div className="space-y-2 relative z-30">
           {/* 1. Date Selector */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => {
-                setIsDateDropdownOpen(!isDateDropdownOpen);
-                setIsClassDropdownOpen(false);
-                setIsSubjectDropdownOpen(false);
+          <div className="relative z-30">
+            <OffsleekDropdown
+              value={assignedDateKey}
+              triggerLabel={assignedDateStr}
+              options={predefinedDates.map((item) => ({
+                value: item.key,
+                label: item.label,
+              }))}
+              onChange={(key) => {
+                const matched = predefinedDates.find((d) => d.key === key);
+                if (matched) {
+                  setAssignedDateStr(matched.text);
+                  setAssignedDateKey(matched.key);
+                  setHasCustomDateSelected(matched.key !== todayDateKey);
+                  showToast('info', `Date set to ${matched.text}`);
+                }
               }}
-              className="w-full flex items-center justify-between bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-xl p-2.5 sm:p-3 text-[12.5px] sm:text-[13px] font-medium text-neutral-900 transition cursor-pointer"
-            >
-              <div className="flex items-center gap-2.5 truncate">
-                <CalendarIcon className="w-4 h-4 text-neutral-700 shrink-0" />
-                <span className="truncate">{assignedDateStr}</span>
-              </div>
-              <ChevronDown className="w-4 h-4 text-neutral-400 shrink-0 ml-1" />
-            </button>
-
-            {/* Date Dropdown */}
-            {isDateDropdownOpen && (
-              <div className="absolute left-0 top-full mt-1 w-full bg-white border border-[#e5e7eb] rounded-xl shadow-xl py-1 z-40 animate-in fade-in zoom-in-95">
-                {predefinedDates.map((item) => (
-                  <button
-                    key={item.key}
-                    type="button"
-                    onClick={() => {
-                      setAssignedDateStr(item.text);
-                      setAssignedDateKey(item.key);
-                      setHasCustomDateSelected(item.key !== todayDateKey);
-                      setIsDateDropdownOpen(false);
-                      showToast('info', `Date set to ${item.text}`);
-                    }}
-                    className={`w-full text-left px-3 py-2 text-[11.5px] sm:text-[12px] transition flex items-center justify-between ${
-                      assignedDateKey === item.key
-                        ? 'bg-neutral-900 text-white font-semibold'
-                        : 'text-neutral-800 hover:bg-neutral-50'
-                    }`}
-                  >
-                    <span>{item.label}</span>
-                    {assignedDateKey === item.key && <Check className="w-3.5 h-3.5 text-white" />}
-                  </button>
-                ))}
-              </div>
-            )}
+              icon={<CalendarIcon className="w-4 h-4 stroke-[2]" />}
+              ariaLabel="Select homework date"
+            />
           </div>
 
           {/* 2. Class Selector */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => {
-                setIsClassDropdownOpen(!isClassDropdownOpen);
-                setIsDateDropdownOpen(false);
-                setIsSubjectDropdownOpen(false);
-              }}
-              className="w-full flex items-center justify-between bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-xl p-2.5 sm:p-3 text-[12.5px] sm:text-[13px] font-medium text-neutral-900 transition cursor-pointer"
-            >
-              <div className="flex items-center gap-2.5 truncate">
-                <Users className="w-4 h-4 text-neutral-700 shrink-0" />
-                <span className="truncate">{selectedClass}</span>
-              </div>
-              <ChevronDown className="w-4 h-4 text-neutral-400 shrink-0 ml-1" />
-            </button>
-
-            {/* Class Dropdown */}
-            {isClassDropdownOpen && (
-              <div className="absolute right-0 top-full mt-1 w-full bg-white border border-[#e5e7eb] rounded-xl shadow-xl py-1 z-40 animate-in fade-in zoom-in-95">
-                {authorizedClasses.map((item) => (
-                  <button
-                    key={item.classId}
-                    type="button"
-                    onClick={() => handleSelectClass(item.className)}
-                    className={`w-full text-left px-3 py-2 text-[11.5px] sm:text-[12px] transition flex items-center justify-between ${
-                      selectedClass === item.className
-                        ? 'bg-neutral-900 text-white font-semibold'
-                        : 'text-neutral-800 hover:bg-neutral-50'
-                    }`}
-                  >
-                    <div>
-                      <div className="font-semibold">{item.className}</div>
-                      <div className={`text-[10px] ${selectedClass === item.className ? 'text-neutral-300' : 'text-neutral-400'}`}>
-                        {item.role} ({item.studentCount} students)
-                      </div>
-                    </div>
-                    {selectedClass === item.className && <Check className="w-3.5 h-3.5 text-white shrink-0 ml-1" />}
-                  </button>
-                ))}
-              </div>
-            )}
+          <div className="relative z-20">
+            <OffsleekDropdown
+              value={selectedClass}
+              triggerLabel={selectedClass}
+              options={authorizedClasses.map((item) => ({
+                value: item.className,
+                label: item.className,
+                description: `${item.role} (${item.studentCount} students)`,
+              }))}
+              onChange={(val) => handleSelectClass(val)}
+              icon={<Users className="w-4 h-4 stroke-[2]" />}
+              ariaLabel="Select class"
+            />
           </div>
         </div>
 
         {/* 3. Subject Selector Directly Below */}
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => {
-              setIsSubjectDropdownOpen(!isSubjectDropdownOpen);
-              setIsDateDropdownOpen(false);
-              setIsClassDropdownOpen(false);
-            }}
-            className="w-full flex items-center justify-between bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-xl p-2.5 sm:p-3 text-[12.5px] sm:text-[13px] font-medium text-neutral-900 transition cursor-pointer"
-          >
-            <div className="flex items-center gap-2.5 truncate">
-              <BookOpen className="w-4 h-4 text-neutral-700 shrink-0" />
-              <span className="truncate">{selectedSubject}</span>
-            </div>
-            <ChevronDown className="w-4 h-4 text-neutral-400 shrink-0 ml-1" />
-          </button>
-
-          {/* Subject Dropdown */}
-          {isSubjectDropdownOpen && (
-            <div className="absolute left-0 top-full mt-1 w-full bg-white border border-[#e5e7eb] rounded-xl shadow-xl py-1 z-40 animate-in fade-in zoom-in-95">
-              {availableSubjects.map((subj) => (
-                <button
-                  key={subj}
-                  type="button"
-                  onClick={() => {
-                    setSelectedSubject(subj);
-                    setIsSubjectDropdownOpen(false);
-                  }}
-                  className={`w-full text-left px-3 py-2 text-[11.5px] sm:text-[12px] transition flex items-center justify-between ${
-                    selectedSubject === subj
-                      ? 'bg-neutral-900 text-white font-semibold'
-                      : 'text-neutral-800 hover:bg-neutral-50'
-                  }`}
-                >
-                  <span>{subj}</span>
-                  {selectedSubject === subj && <Check className="w-3.5 h-3.5 text-white" />}
-                </button>
-              ))}
-            </div>
-          )}
+        <div className="relative z-10">
+          <OffsleekDropdown
+            value={selectedSubject}
+            options={availableSubjects.map((subj) => ({
+              value: subj,
+              label: subj,
+            }))}
+            onChange={(subj) => setSelectedSubject(subj)}
+            icon={<BookOpen className="w-4 h-4 stroke-[2]" />}
+            ariaLabel="Select subject"
+          />
         </div>
 
         {/* 4. Homework Instructions Multiline Input */}

@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   AlertCircle,
   BarChart2,
@@ -20,6 +21,7 @@ import {
 } from 'lucide-react';
 import StaffBottomNav from './components/StaffBottomNav';
 import StaffStatusBar from './components/StaffStatusBar';
+import { useAlignedDropdownPosition } from './hooks/useAlignedDropdownPosition';
 import { getActiveStaffCalendarContext } from './services/calendarService';
 import {
   AuthorizedStudentProfile,
@@ -134,7 +136,25 @@ export default function StudentResultsScreen({
   const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
 
   const dropdownContainerRef = useRef<HTMLDivElement | null>(null);
+  const dropdownTriggerRef = useRef<HTMLDivElement | null>(null);
+  const dropdownMenuRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleAutoCloseDropdown = useCallback(() => {
+    setIsDropdownOpen(false);
+  }, []);
+
+  const dropdownGeometry = useAlignedDropdownPosition({
+    isOpen: isDropdownOpen,
+    triggerRef: dropdownTriggerRef,
+    onAutoClose: handleAutoCloseDropdown,
+    align: 'left',
+    matchTriggerWidth: true,
+    preferredMaxHeight: 216,
+    minComfortHeight: 132,
+    gap: 4,
+    edgePadding: 8,
+  });
 
   // Keep selected student valid within authorized roster
   useEffect(() => {
@@ -150,15 +170,15 @@ export default function StudentResultsScreen({
     }
   }, [authorizedStudents, selectedStudentKey]);
 
-  // Close dropdown on outside click or Escape
+  // Close dropdown on outside click (checks trigger & portaled menu) or Escape
   useEffect(() => {
     if (!isDropdownOpen) return;
 
     const handlePointerDown = (event: MouseEvent) => {
-      if (
-        dropdownContainerRef.current &&
-        !dropdownContainerRef.current.contains(event.target as Node)
-      ) {
+      const target = event.target as Node;
+      const inTrigger = dropdownContainerRef.current?.contains(target);
+      const inMenu = dropdownMenuRef.current?.contains(target);
+      if (!inTrigger && !inMenu) {
         setIsDropdownOpen(false);
       }
     };
@@ -249,13 +269,14 @@ export default function StudentResultsScreen({
         {/* B. Student Search Dropdown */}
         <div ref={dropdownContainerRef} className="relative z-20">
           <div
-            className={`flex items-center gap-2 bg-white border ${
+            ref={dropdownTriggerRef}
+            className={`offsleek-dropdown-trigger flex items-center gap-2 bg-white border ${
               isDropdownOpen
-                ? 'border-neutral-900 ring-1 ring-neutral-900/10'
+                ? 'border-black'
                 : 'border-[#e5e7eb] hover:border-neutral-400'
-            } rounded-2xl px-3 py-2.5 transition shadow-[0_1px_2px_rgba(0,0,0,0.02)]`}
+            } rounded-xl px-3 py-2.5 transition shadow-[0_1px_2px_rgba(0,0,0,0.02)]`}
           >
-            <User className="w-4 h-4 text-neutral-800 stroke-[1.9] shrink-0" />
+            <User className="w-4 h-4 text-black stroke-[1.9] shrink-0" />
             <input
               ref={searchInputRef}
               type="text"
@@ -271,7 +292,7 @@ export default function StudentResultsScreen({
                 if (!isDropdownOpen) setIsDropdownOpen(true);
               }}
               placeholder="Search or select a student"
-              className="w-full min-w-0 bg-transparent text-[12.5px] font-medium text-neutral-900 placeholder:text-[#6b7280] focus:outline-none"
+              className="w-full min-w-0 bg-transparent text-[12.5px] font-medium text-black placeholder:text-[#6b7280] focus:outline-none"
             />
             {searchQuery && (
               <button
@@ -281,7 +302,7 @@ export default function StudentResultsScreen({
                   setSearchQuery('');
                   searchInputRef.current?.focus();
                 }}
-                className="p-0.5 rounded-full text-neutral-400 hover:text-neutral-800 hover:bg-neutral-100 cursor-pointer shrink-0 transition"
+                className="p-0.5 rounded-full text-neutral-500 hover:text-black hover:bg-neutral-100 cursor-pointer shrink-0 transition"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -290,69 +311,96 @@ export default function StudentResultsScreen({
               type="button"
               aria-label={isDropdownOpen ? 'Close student list' : 'Open student list'}
               onClick={() => setIsDropdownOpen((prev) => !prev)}
-              className="p-0.5 text-neutral-700 hover:text-black cursor-pointer shrink-0 transition"
+              className="p-0.5 text-black cursor-pointer shrink-0 transition"
             >
               <ChevronDown
-                className={`w-4 h-4 stroke-[2] transition-transform duration-150 ${
+                className={`w-4 h-4 text-black stroke-[2] transition-transform duration-150 ${
                   isDropdownOpen ? 'rotate-180' : ''
                 }`}
               />
             </button>
           </div>
 
-          {isDropdownOpen && (
-            <div
-              id="student-results-dropdown-listbox"
-              role="listbox"
-              aria-label="Authorized students"
-              className="absolute left-0 right-0 mt-1.5 bg-white border border-[#e5e7eb] rounded-2xl shadow-[0_12px_30px_-8px_rgba(0,0,0,0.16)] max-h-[248px] overflow-y-auto no-scrollbar py-1.5 z-30"
-            >
-              {filteredStudents.length === 0 ? (
-                <div className="px-3.5 py-4 text-center text-[12px] text-[#6b7280]">
-                  No authorized students match &ldquo;{searchQuery.trim()}&rdquo;.
-                </div>
-              ) : (
-                filteredStudents.map((student) => {
-                  const key = getStudentCompositeKey(student);
-                  const isSelected = selectedStudent
-                    ? getStudentCompositeKey(selectedStudent) === key
-                    : false;
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      role="option"
-                      aria-selected={isSelected}
-                      onClick={() => handleSelectStudent(student)}
-                      className={`w-full px-3 py-2 flex items-center justify-between gap-2.5 text-left transition cursor-pointer ${
-                        isSelected ? 'bg-[#f4f5f7]' : 'hover:bg-[#f8f9fa]'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <StudentAvatar
-                          name={student.name}
-                          avatar={student.avatar}
-                          sizeClass="w-8 h-8"
-                          textSizeClass="text-[10.5px]"
-                        />
-                        <div className="min-w-0">
-                          <div className="text-[12.5px] font-semibold text-neutral-900 truncate">
-                            {student.name}
-                          </div>
-                          <div className="text-[10.5px] text-[#6b7280] truncate tabular-nums">
-                            {student.grade} &nbsp;|&nbsp; Roll No. {student.rollNo}
-                          </div>
-                        </div>
+          {isDropdownOpen && dropdownGeometry && typeof document !== 'undefined'
+            ? createPortal(
+                <div
+                  ref={dropdownMenuRef}
+                  id="student-results-dropdown-listbox"
+                  role="listbox"
+                  aria-label="Authorized students"
+                  data-placement={dropdownGeometry.placement}
+                  style={{
+                    top:
+                      dropdownGeometry.top !== undefined
+                        ? `${dropdownGeometry.top}px`
+                        : undefined,
+                    bottom:
+                      dropdownGeometry.bottom !== undefined
+                        ? `${dropdownGeometry.bottom}px`
+                        : undefined,
+                    left: `${dropdownGeometry.left}px`,
+                    width: `${dropdownGeometry.width}px`,
+                    maxHeight: `${dropdownGeometry.maxHeight}px`,
+                  }}
+                  className="offsleek-dropdown-menu fixed z-[70] animate-in fade-in duration-120"
+                >
+                  <div
+                    style={{ maxHeight: `${dropdownGeometry.maxHeight}px` }}
+                    className="offsleek-dropdown-list overflow-y-auto no-scrollbar"
+                  >
+                    {filteredStudents.length === 0 ? (
+                      <div className="px-3.5 py-4 text-center text-[12px] text-[#6b7280] bg-white">
+                        No authorized students match &ldquo;{searchQuery.trim()}&rdquo;.
                       </div>
-                      {isSelected && (
-                        <Check className="w-4 h-4 text-black stroke-[2.4] shrink-0" />
-                      )}
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          )}
+                    ) : (
+                      filteredStudents.map((student) => {
+                        const key = getStudentCompositeKey(student);
+                        const isSelected = selectedStudent
+                          ? getStudentCompositeKey(selectedStudent) === key
+                          : false;
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            role="option"
+                            aria-selected={isSelected}
+                            onClick={() => handleSelectStudent(student)}
+                            className={`offsleek-dropdown-option px-3.5 py-2.5 gap-2.5 ${
+                              isSelected ? 'font-semibold' : 'font-medium'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                              <StudentAvatar
+                                name={student.name}
+                                avatar={student.avatar}
+                                sizeClass="w-8 h-8"
+                                textSizeClass="text-[10.5px]"
+                              />
+                              <div className="min-w-0">
+                                <div className="text-[12.5px] font-semibold truncate">
+                                  {student.name}
+                                </div>
+                                <div
+                                  className={`text-[10.5px] truncate tabular-nums ${
+                                    isSelected ? 'text-neutral-300' : 'text-[#6b7280]'
+                                  }`}
+                                >
+                                  {student.grade} &nbsp;|&nbsp; Roll No. {student.rollNo}
+                                </div>
+                              </div>
+                            </div>
+                            {isSelected && (
+                              <Check className="w-4 h-4 text-white stroke-[2.4] shrink-0" />
+                            )}
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>,
+                document.body
+              )
+            : null}
         </div>
 
         {/* C. Selected Student Profile Card */}

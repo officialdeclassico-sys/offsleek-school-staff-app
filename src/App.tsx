@@ -257,7 +257,10 @@ export default function App() {
     <div className="min-h-screen w-full bg-[#141820] flex items-center justify-center p-0 sm:p-4 md:p-6 overflow-x-hidden select-none antialiased">
       
       {/* Unified notch-free mobile device container across Login and all Staff Portal screens */}
-      <div className="relative isolate w-full sm:max-w-[390px] h-screen sm:h-[844px] sm:max-h-[880px] bg-white sm:rounded-[40px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.7),0_0_0_1px_rgba(255,255,255,0.08)] overflow-hidden flex flex-col justify-between">
+      <div
+        data-offsleek-frame="true"
+        className="relative isolate w-full sm:max-w-[390px] h-screen sm:h-[844px] sm:max-h-[880px] bg-white sm:rounded-[40px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.7),0_0_0_1px_rgba(255,255,255,0.08)] overflow-hidden flex flex-col justify-between"
+      >
         
         {/* Screen 1: Dashboard */}
         {currentScreen === 'DASHBOARD' && (

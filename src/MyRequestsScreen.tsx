@@ -7,7 +7,6 @@ import React, { useRef, useState } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   FileText,
   ArrowRight,
   Send,
@@ -27,6 +26,7 @@ import {
 } from 'lucide-react';
 import StaffStatusBar from './components/StaffStatusBar';
 import StaffBottomNav from './components/StaffBottomNav';
+import OffsleekDropdown from './components/OffsleekDropdown';
 import {
   AUTHENTICATED_STAFF_CONTEXT,
   SupportAttachment,
@@ -853,30 +853,23 @@ export default function MyRequestsScreen({
               <label className="block text-[12px] font-bold text-neutral-900 mb-1.5">
                 Request Category <span className="text-red-500">*</span>
               </label>
-              <div className="relative">
-                <select
+              <div className="relative z-30">
+                <OffsleekDropdown
                   value={category}
-                  onChange={(e) => {
-                    setCategory(e.target.value);
+                  placeholder="Select a category"
+                  hasError={Boolean(formErrors.category)}
+                  options={getCategoriesForDestination(formDestination).map((cat) => ({
+                    value: cat,
+                    label: cat,
+                  }))}
+                  onChange={(val) => {
+                    setCategory(val);
                     if (formErrors.category) {
                       setFormErrors((prev) => ({ ...prev, category: '' }));
                     }
                   }}
-                  aria-label="Request Category"
-                  className={`w-full appearance-none bg-white border ${
-                    formErrors.category ? 'border-red-500' : 'border-[#e5e7eb] focus:border-neutral-900'
-                  } rounded-xl px-3.5 py-2.5 pr-9 text-[12.5px] font-medium ${
-                    category ? 'text-neutral-900' : 'text-[#9ca3af]'
-                  } focus:outline-none transition cursor-pointer`}
-                >
-                  <option value="">Select a category</option>
-                  {getCategoriesForDestination(formDestination).map((cat) => (
-                    <option key={cat} value={cat} className="text-neutral-900">
-                      {cat}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="w-4 h-4 text-neutral-500 pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2" />
+                  ariaLabel="Request Category"
+                />
               </div>
               {formErrors.category && (
                 <p className="text-[11px] text-red-600 mt-1 font-medium">{formErrors.category}</p>

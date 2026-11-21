@@ -6,16 +6,15 @@
 import React, { useState, useRef } from 'react';
 import {
   ChevronLeft,
-  ChevronDown,
   Calendar as CalendarIcon,
   Paperclip,
-  Check,
   AlertCircle,
   X,
   FileText,
 } from 'lucide-react';
 import StaffStatusBar from './components/StaffStatusBar';
 import StaffBottomNav from './components/StaffBottomNav';
+import OffsleekDropdown from './components/OffsleekDropdown';
 import { StaffRequest, submitStaffRequest } from './services/requestsService';
 import {
   addDaysIST,
@@ -54,7 +53,6 @@ export default function LeaveRequestFormScreen({
 }: LeaveRequestFormScreenProps) {
   // Form State
   const [leaveType, setLeaveType] = useState('Casual Leave');
-  const [isLeaveTypeDropdownOpen, setIsLeaveTypeDropdownOpen] = useState(false);
 
   const [fromDate, setFromDate] = useState(() => formatISTDateKey());
   const [toDate, setToDate] = useState(() => formatISTDateKey(addDaysIST(getNow(), 2)));
@@ -214,40 +212,20 @@ export default function LeaveRequestFormScreen({
         <form onSubmit={handleSubmit} className="space-y-3.5">
           
           {/* Field 1: Leave Type * */}
-          <div className="space-y-1 relative">
+          <div className="space-y-1 relative z-30">
             <label className="block text-[12.5px] font-bold text-neutral-900">
               Leave Type <span className="text-rose-500">*</span>
             </label>
-            <button
-              type="button"
-              onClick={() => setIsLeaveTypeDropdownOpen(!isLeaveTypeDropdownOpen)}
-              className="w-full flex items-center justify-between bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-xl px-3 py-2.5 text-[12.5px] font-medium text-neutral-900 transition cursor-pointer"
-            >
-              <span>{leaveType || 'Select Leave Type'}</span>
-              <ChevronDown className="w-4 h-4 text-neutral-400 shrink-0 ml-1" />
-            </button>
-
-            {isLeaveTypeDropdownOpen && (
-              <div className="absolute left-0 top-full mt-1 w-full bg-white border border-[#e5e7eb] rounded-xl shadow-xl py-1 z-40 animate-in fade-in zoom-in-95">
-                {LEAVE_TYPES.map((type) => (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => {
-                      setLeaveType(type);
-                      setIsLeaveTypeDropdownOpen(false);
-                      if (validationError) setValidationError(null);
-                    }}
-                    className={`w-full text-left px-3.5 py-2 text-[12px] transition flex items-center justify-between ${
-                      leaveType === type ? 'bg-neutral-900 text-white font-semibold' : 'text-neutral-800 hover:bg-neutral-50'
-                    }`}
-                  >
-                    <span>{type}</span>
-                    {leaveType === type && <Check className="w-3.5 h-3.5 text-white" />}
-                  </button>
-                ))}
-              </div>
-            )}
+            <OffsleekDropdown
+              value={leaveType}
+              options={LEAVE_TYPES.map((type) => ({ value: type, label: type }))}
+              onChange={(val) => {
+                setLeaveType(val);
+                if (validationError) setValidationError(null);
+              }}
+              placeholder="Select Leave Type"
+              ariaLabel="Leave Type"
+            />
           </div>
 
           {/* Field 2: From Date * and To Date * side by side */}

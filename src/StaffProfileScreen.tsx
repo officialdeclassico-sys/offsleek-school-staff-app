@@ -797,26 +797,31 @@ export default function StaffProfileScreen({
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="py-2 space-y-1">
-              {['English', 'Hindi', 'Spanish', 'French'].map((lang) => (
-                <button
-                  key={lang}
-                  type="button"
-                  onClick={() => {
-                    setSelectedLanguage(lang);
-                    setShowLanguageModal(false);
-                    showToast(`Language set to ${lang}`);
-                  }}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[13px] transition cursor-pointer ${
-                    selectedLanguage === lang
-                      ? 'bg-neutral-100 font-bold text-neutral-900'
-                      : 'hover:bg-neutral-50 text-neutral-700'
-                  }`}
-                >
-                  <span>{lang}</span>
-                  {selectedLanguage === lang && <Check className="w-4 h-4 text-black" />}
-                </button>
-              ))}
+            <div className="mt-3 border border-[#e5e7eb] rounded-[14px] overflow-hidden bg-white">
+              <div className="offsleek-dropdown-list" role="listbox" aria-label="Select Language">
+                {['English', 'Hindi', 'Spanish', 'French'].map((lang) => {
+                  const isSelected = selectedLanguage === lang;
+                  return (
+                    <button
+                      key={lang}
+                      type="button"
+                      role="option"
+                      aria-selected={isSelected}
+                      onClick={() => {
+                        setSelectedLanguage(lang);
+                        setShowLanguageModal(false);
+                        showToast(`Language set to ${lang}`);
+                      }}
+                      className={`offsleek-dropdown-option px-3.5 py-2.5 text-[13px] ${
+                        isSelected ? 'font-semibold' : 'font-medium'
+                      }`}
+                    >
+                      <span>{lang}</span>
+                      {isSelected && <Check className="w-4 h-4 text-white stroke-[2.4] shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>

@@ -9,8 +9,11 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
+  File,
+  FilePenLine,
   FileText,
   GraduationCap,
+  Inbox,
   RefreshCw,
   Sparkles,
   UserCheck,
@@ -22,7 +25,6 @@ import {
 import { getParentLeaveRequests } from './services/requestsService';
 import {
   getAttendanceRecords,
-  getAuthorizedAttendanceGrades,
   getDefaultAttendanceGradeForStaff,
   subscribeToTodayClassOverview,
   TodayClassOverviewSnapshot,
@@ -97,12 +99,9 @@ export default function StaffDashboard({
 
   const { fullDateStr, todayDateKey } = useISTCurrentDate();
   const staffContext = useMemo(() => getActiveStaffCalendarContext(), []);
-  const authorizedAttendanceGrades = useMemo(
-    () => getAuthorizedAttendanceGrades(staffContext),
+  const selectedOverviewGrade = useMemo(
+    () => getDefaultAttendanceGradeForStaff(staffContext),
     [staffContext]
-  );
-  const [selectedOverviewGrade, setSelectedOverviewGrade] = useState<string>(() =>
-    getDefaultAttendanceGradeForStaff(getActiveStaffCalendarContext())
   );
   const [overviewRetryTick, setOverviewRetryTick] = useState(0);
   const [classOverview, setClassOverview] = useState<TodayClassOverviewSnapshot>(() => ({
@@ -113,7 +112,7 @@ export default function StaffDashboard({
     unmarkedCount: 0,
     dateKey: todayDateKey,
     gradeScope: getDefaultAttendanceGradeForStaff(getActiveStaffCalendarContext()),
-    authorizedGrades: getAuthorizedAttendanceGrades(getActiveStaffCalendarContext()),
+    authorizedGrades: [getDefaultAttendanceGradeForStaff(getActiveStaffCalendarContext())],
     holidayTitle: null,
     isLiveFirestore: false,
     requiresFirebaseAuth: false,
@@ -262,172 +261,178 @@ export default function StaffDashboard({
           </div>
         </div>
 
-        {/* C. Three Quick-Action Cards (Centered Icon Above Label) */}
-        <div className="grid grid-cols-3 gap-2 pt-0.5">
-          {/* Card 1: Take Attendance */}
-          <button
-            type="button"
-            onClick={() => {
-              if (onTakeAttendance) onTakeAttendance();
-              else if (onOpenAttendance) onOpenAttendance();
-              else showToast('Action: Opening Attendance Register');
-            }}
-            className="w-full min-w-0 flex flex-col items-center justify-center bg-white border border-[#e5e7eb] hover:bg-neutral-50 active:scale-[0.98] py-2.5 px-1.5 rounded-2xl transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] cursor-pointer min-h-[64px]"
-          >
-            <UserCheck className="w-4.5 h-4.5 sm:w-5 sm:h-5 text-neutral-900 stroke-[1.8] mb-1.5" />
-            <span className="text-[11px] sm:text-[11.5px] font-semibold text-neutral-900 text-center tracking-tight leading-tight whitespace-nowrap">
-              Take Attendance
-            </span>
-          </button>
-
-          {/* Card 2: Log Homework */}
-          <button
-            type="button"
-            onClick={() => {
-              if (onLogHomework) onLogHomework();
-              else showToast('Action: Opening Homework Logger');
-            }}
-            className="w-full min-w-0 flex flex-col items-center justify-center bg-white border border-[#e5e7eb] hover:bg-neutral-50 active:scale-[0.98] py-2.5 px-1.5 rounded-2xl transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] cursor-pointer min-h-[64px]"
-          >
-            <FileText className="w-4.5 h-4.5 sm:w-5 sm:h-5 text-neutral-900 stroke-[1.8] mb-1.5" />
-            <span className="text-[11px] sm:text-[11.5px] font-semibold text-neutral-900 text-center tracking-tight leading-tight whitespace-nowrap">
-              Log Homework
-            </span>
-          </button>
-
-          {/* Card 3: Add Marks */}
-          <button
-            type="button"
-            onClick={() => {
-              if (onOpenAddMarks) onOpenAddMarks();
-              else showToast('Action: Opening Gradebook & Marks');
-            }}
-            className="w-full min-w-0 flex flex-col items-center justify-center bg-white border border-[#e5e7eb] hover:bg-neutral-50 active:scale-[0.98] py-2.5 px-1.5 rounded-2xl transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] cursor-pointer min-h-[64px]"
-          >
-            <ClipboardCheck className="w-4.5 h-4.5 sm:w-5 sm:h-5 text-neutral-900 stroke-[1.8] mb-1.5" />
-            <span className="text-[11px] sm:text-[11.5px] font-semibold text-neutral-900 text-center tracking-tight leading-tight whitespace-nowrap">
-              Add Marks
-            </span>
-          </button>
-        </div>
-
-        {/* Quick Access Section: Fixed 3-Column, 2-Row Grid of 6 Uniform Tiles */}
-        <div className="space-y-1.5 pt-0.5">
+        {/* C. Unified Quick Access Section: 3-Column, 3-Row Grid of 9 Uniform Tiles */}
+        <section aria-labelledby="quick-access-heading" className="space-y-2 pt-0.5">
           <div className="flex items-center justify-between">
-            <h3 className="text-[13.5px] sm:text-[14px] font-bold text-neutral-900 tracking-tight">
+            <h3
+              id="quick-access-heading"
+              className="text-[13.5px] sm:text-[14px] font-bold text-neutral-900 tracking-tight"
+            >
               Quick Access
             </h3>
           </div>
 
           <div className="grid grid-cols-3 gap-2">
-            {/* 1. Parent Leave */}
+            {/* Row 1, Tile 1: Mark Attendance */}
+            <button
+              type="button"
+              onClick={() => {
+                if (onTakeAttendance) onTakeAttendance();
+                else if (onOpenAttendance) onOpenAttendance();
+                else showToast('Action: Opening Attendance Register');
+              }}
+              className="w-full min-w-0 bg-white border border-[#e5e7eb] hover:border-neutral-400 hover:bg-neutral-50/70 rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] active:scale-[0.98] min-h-[72px] sm:min-h-[76px]"
+            >
+              <div className="w-7 h-7 flex items-center justify-center text-black mb-1.5 shrink-0">
+                <UserCheck className="w-[19px] h-[19px] sm:w-5 sm:h-5 stroke-[1.85]" />
+              </div>
+              <span className="text-center text-[10px] min-[375px]:text-[10.5px] sm:text-[11px] font-semibold text-neutral-900 leading-tight break-words">
+                Mark Attendance
+              </span>
+            </button>
+
+            {/* Row 1, Tile 2: Log Homework */}
+            <button
+              type="button"
+              onClick={() => {
+                if (onLogHomework) onLogHomework();
+                else showToast('Action: Opening Homework Logger');
+              }}
+              className="w-full min-w-0 bg-white border border-[#e5e7eb] hover:border-neutral-400 hover:bg-neutral-50/70 rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] active:scale-[0.98] min-h-[72px] sm:min-h-[76px]"
+            >
+              <div className="w-7 h-7 flex items-center justify-center text-black mb-1.5 shrink-0">
+                <FilePenLine className="w-[19px] h-[19px] sm:w-5 sm:h-5 stroke-[1.85]" />
+              </div>
+              <span className="text-center text-[10px] min-[375px]:text-[10.5px] sm:text-[11px] font-semibold text-neutral-900 leading-tight break-words">
+                Log Homework
+              </span>
+            </button>
+
+            {/* Row 1, Tile 3: Add Marks */}
+            <button
+              type="button"
+              onClick={() => {
+                if (onOpenAddMarks) onOpenAddMarks();
+                else showToast('Action: Opening Gradebook & Marks');
+              }}
+              className="w-full min-w-0 bg-white border border-[#e5e7eb] hover:border-neutral-400 hover:bg-neutral-50/70 rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] active:scale-[0.98] min-h-[72px] sm:min-h-[76px]"
+            >
+              <div className="w-7 h-7 flex items-center justify-center text-black mb-1.5 shrink-0">
+                <ClipboardCheck className="w-[19px] h-[19px] sm:w-5 sm:h-5 stroke-[1.85]" />
+              </div>
+              <span className="text-center text-[10px] min-[375px]:text-[10.5px] sm:text-[11px] font-semibold text-neutral-900 leading-tight break-words">
+                Add Marks
+              </span>
+            </button>
+
+            {/* Row 2, Tile 4: TDU Requests */}
             <button
               type="button"
               onClick={() => {
                 if (onOpenParentLeaveApprovals) onOpenParentLeaveApprovals();
-                else showToast('Action: Parent Leave Approvals');
+                else showToast('Action: TDU Requests');
               }}
-              className="w-full min-w-0 bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] active:scale-[0.98] min-h-[72px] sm:min-h-[74px]"
+              className="w-full min-w-0 bg-white border border-[#e5e7eb] hover:border-neutral-400 hover:bg-neutral-50/70 rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] active:scale-[0.98] min-h-[72px] sm:min-h-[76px]"
             >
-              <div className="relative w-7 h-7 flex items-center justify-center text-neutral-900 mb-1.5 shrink-0">
-                <Users className="w-[19px] h-[19px] sm:w-5 sm:h-5 stroke-[1.85]" />
+              <div className="relative w-7 h-7 flex items-center justify-center text-black mb-1.5 shrink-0">
+                <Inbox className="w-[19px] h-[19px] sm:w-5 sm:h-5 stroke-[1.85]" />
                 {pendingLeaveCount > 0 && (
                   <span className="absolute -top-1 -right-2 min-w-4 h-4 px-1 rounded-full bg-[#e11d48] text-white text-[9px] font-bold flex items-center justify-center shadow-xs">
                     {pendingLeaveCount}
                   </span>
                 )}
               </div>
-              <span className="text-center text-[10.5px] sm:text-[11px] font-semibold text-neutral-900 leading-tight whitespace-nowrap">
-                Parent Leave
+              <span className="text-center text-[10px] min-[375px]:text-[10.5px] sm:text-[11px] font-semibold text-neutral-900 leading-tight break-words">
+                TDU Requests
               </span>
             </button>
 
-            {/* 2. My Requests */}
+            {/* Row 2, Tile 5: My Requests */}
             <button
               type="button"
               onClick={() => {
                 if (onOpenMyRequests) onOpenMyRequests();
                 else showToast('Navigation: My Requests');
               }}
-              className="w-full min-w-0 bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] active:scale-[0.98] min-h-[72px] sm:min-h-[74px]"
+              className="w-full min-w-0 bg-white border border-[#e5e7eb] hover:border-neutral-400 hover:bg-neutral-50/70 rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] active:scale-[0.98] min-h-[72px] sm:min-h-[76px]"
             >
-              <div className="w-7 h-7 flex items-center justify-center text-neutral-900 mb-1.5 shrink-0">
+              <div className="w-7 h-7 flex items-center justify-center text-black mb-1.5 shrink-0">
                 <FileText className="w-[19px] h-[19px] sm:w-5 sm:h-5 stroke-[1.85]" />
               </div>
-              <span className="text-center text-[10.5px] sm:text-[11px] font-semibold text-neutral-900 leading-tight whitespace-nowrap">
+              <span className="text-center text-[10px] min-[375px]:text-[10.5px] sm:text-[11px] font-semibold text-neutral-900 leading-tight break-words">
                 My Requests
               </span>
             </button>
 
-            {/* 3. My Attendance */}
+            {/* Row 2, Tile 6: My Attendance */}
             <button
               type="button"
               onClick={() => {
                 if (onOpenMyAttendance) onOpenMyAttendance();
                 else showToast('Action: My Staff Attendance');
               }}
-              className="w-full min-w-0 bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] active:scale-[0.98] min-h-[72px] sm:min-h-[74px]"
+              className="w-full min-w-0 bg-white border border-[#e5e7eb] hover:border-neutral-400 hover:bg-neutral-50/70 rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] active:scale-[0.98] min-h-[72px] sm:min-h-[76px]"
             >
-              <div className="w-7 h-7 flex items-center justify-center text-neutral-900 mb-1.5 shrink-0">
+              <div className="w-7 h-7 flex items-center justify-center text-black mb-1.5 shrink-0">
                 <BarChart2 className="w-[19px] h-[19px] sm:w-5 sm:h-5 stroke-[1.85]" />
               </div>
-              <span className="text-center text-[10.5px] sm:text-[11px] font-semibold text-neutral-900 leading-tight whitespace-nowrap">
+              <span className="text-center text-[10px] min-[375px]:text-[10.5px] sm:text-[11px] font-semibold text-neutral-900 leading-tight break-words">
                 My Attendance
               </span>
             </button>
 
-            {/* 4. My Documents */}
+            {/* Row 3, Tile 7: My Documents */}
             <button
               type="button"
               onClick={() => {
                 if (onOpenMyDocuments) onOpenMyDocuments();
                 else showToast('Action: My Official Documents');
               }}
-              className="w-full min-w-0 bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] active:scale-[0.98] min-h-[72px] sm:min-h-[74px]"
+              className="w-full min-w-0 bg-white border border-[#e5e7eb] hover:border-neutral-400 hover:bg-neutral-50/70 rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] active:scale-[0.98] min-h-[72px] sm:min-h-[76px]"
             >
-              <div className="w-7 h-7 flex items-center justify-center text-neutral-900 mb-1.5 shrink-0">
-                <FileText className="w-[19px] h-[19px] sm:w-5 sm:h-5 stroke-[1.85]" />
+              <div className="w-7 h-7 flex items-center justify-center text-black mb-1.5 shrink-0">
+                <File className="w-[19px] h-[19px] sm:w-5 sm:h-5 stroke-[1.85]" />
               </div>
-              <span className="text-center text-[10.5px] sm:text-[11px] font-semibold text-neutral-900 leading-tight whitespace-nowrap">
+              <span className="text-center text-[10px] min-[375px]:text-[10.5px] sm:text-[11px] font-semibold text-neutral-900 leading-tight break-words">
                 My Documents
               </span>
             </button>
 
-            {/* 5. Calendar */}
+            {/* Row 3, Tile 8: School Calendar */}
             <button
               type="button"
               onClick={() => {
                 if (onOpenSchoolCalendar) onOpenSchoolCalendar();
                 else showToast('Action: School Calendar');
               }}
-              className="w-full min-w-0 bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] active:scale-[0.98] min-h-[72px] sm:min-h-[74px]"
+              className="w-full min-w-0 bg-white border border-[#e5e7eb] hover:border-neutral-400 hover:bg-neutral-50/70 rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] active:scale-[0.98] min-h-[72px] sm:min-h-[76px]"
             >
-              <div className="w-7 h-7 flex items-center justify-center text-neutral-900 mb-1.5 shrink-0">
+              <div className="w-7 h-7 flex items-center justify-center text-black mb-1.5 shrink-0">
                 <Calendar className="w-[19px] h-[19px] sm:w-5 sm:h-5 stroke-[1.85]" />
               </div>
-              <span className="text-center text-[10.5px] sm:text-[11px] font-semibold text-neutral-900 leading-tight whitespace-nowrap">
-                Calendar
+              <span className="text-center text-[10px] min-[375px]:text-[10.5px] sm:text-[11px] font-semibold text-neutral-900 leading-tight break-words">
+                School Calendar
               </span>
             </button>
 
-            {/* 6. Students Results */}
+            {/* Row 3, Tile 9: Students' Results */}
             <button
               type="button"
               onClick={() => {
                 if (onOpenStudentsResults) onOpenStudentsResults();
-                else showToast('Action: Students Results');
+                else showToast("Action: Students' Results");
               }}
-              className="w-full min-w-0 bg-white border border-[#e5e7eb] hover:border-neutral-400 rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] active:scale-[0.98] min-h-[72px] sm:min-h-[74px]"
+              className="w-full min-w-0 bg-white border border-[#e5e7eb] hover:border-neutral-400 hover:bg-neutral-50/70 rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-[0_1px_3px_rgba(0,0,0,0.02)] active:scale-[0.98] min-h-[72px] sm:min-h-[76px]"
             >
-              <div className="w-7 h-7 flex items-center justify-center text-neutral-900 mb-1.5 shrink-0">
+              <div className="w-7 h-7 flex items-center justify-center text-black mb-1.5 shrink-0">
                 <GraduationCap className="w-[19px] h-[19px] sm:w-5 sm:h-5 stroke-[1.85]" />
               </div>
-              <span className="text-center text-[10.5px] sm:text-[11px] font-semibold text-neutral-900 leading-tight whitespace-nowrap">
-                Students Results
+              <span className="text-center text-[10px] min-[375px]:text-[10.5px] sm:text-[11px] font-semibold text-neutral-900 leading-tight break-words">
+                Students&apos; Results
               </span>
             </button>
           </div>
-        </div>
+        </section>
 
         {/* D. Today's Schedule Section (Horizontally Scrollable, No View Full Day, No Arrow) */}
         <div className="bg-white border border-[#e5e7eb] rounded-[20px] sm:rounded-[22px] p-3 sm:p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
@@ -507,25 +512,6 @@ export default function StaffDashboard({
                 Today’s Class Overview
               </h3>
             </div>
-            {authorizedAttendanceGrades.length > 1 ? (
-              <select
-                aria-label="Select class for today's attendance overview"
-                value={selectedOverviewGrade}
-                onChange={(e) => setSelectedOverviewGrade(e.target.value)}
-                className="text-[10.5px] sm:text-[11px] font-medium text-[#6b7280] hover:text-neutral-900 bg-transparent border-0 focus:outline-none cursor-pointer shrink-0 text-right"
-              >
-                {authorizedAttendanceGrades.map((grade) => (
-                  <option key={grade} value={grade}>
-                    {grade}
-                  </option>
-                ))}
-                <option value="ALL">All Classes</option>
-              </select>
-            ) : (
-              <span className="text-[10.5px] sm:text-[11px] font-medium text-[#6b7280] shrink-0">
-                {selectedOverviewGrade}
-              </span>
-            )}
           </div>
 
           {/* Loading Skeleton State */}
